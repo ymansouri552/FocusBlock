@@ -1,5 +1,0 @@
-<?xml version="1.0" encoding="utf-8"?>
-<full-backup-content>
-    <include domain="sharedpref" path="focusblock_settings.pb" />
-    <include domain="database" path="focus_block.db" />
-</full-backup-content>
