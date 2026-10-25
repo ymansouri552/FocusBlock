@@ -1,0 +1,39 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- Base application theme. -->
+    <style name="Theme.FocusBlock" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="colorPrimary">@color/m3_refresh_primary</item>
+        <item name="colorPrimaryContainer">@color/m3_refresh_primaryContainer</item>
+        <item name="colorSecondary">@color/m3_refresh_secondary</item>
+        <item name="colorSecondaryContainer">@color/m3_refresh_secondaryContainer</item>
+        <item name="colorTertiary">@color/m3_refresh_tertiary</item>
+        <item name="colorTertiaryContainer">@color/m3_refresh_tertiaryContainer</item>
+        <item name="colorError">@color/m3_refresh_error</item>
+        <item name="android:colorBackground">@color/m3_refresh_background</item>
+        <item name="colorSurface">@color/m3_refresh_surface</item>
+        <item name="colorSurfaceVariant">@color/m3_refresh_surfaceVariant</item>
+        <item name="colorOnPrimary">@color/m3_refresh_onPrimary</item>
+        <item name="colorOnPrimaryContainer">@color/m3_refresh_onPrimaryContainer</item>
+        <item name="colorOnSecondary">@color/m3_refresh_onSecondary</item>
+        <item name="colorOnSecondaryContainer">@color/m3_refresh_onSecondaryContainer</item>
+        <item name="colorOnTertiary">@color/m3_refresh_onTertiary</item>
+        <item name="colorOnTertiaryContainer">@color/m3_refresh_onTertiaryContainer</item>
+        <item name="colorOnError">@color/m3_refresh_onError</item>
+        <item name="colorOnBackground">@color/m3_refresh_onBackground</item>
+        <item name="colorOnSurface">@color/m3_refresh_onSurface</item>
+        <item name="colorOnSurfaceVariant">@color/m3_refresh_onSurfaceVariant</item>
+        <item name="colorOutline">@color/m3_refresh_outline</item>
+        <item name="colorOutlineVariant">@color/m3_refresh_outlineVariant</item>
+        <item name="colorSurfaceContainerLowest">@color/m3_refresh_surfaceContainerLowest</item>
+        <item name="colorSurfaceContainerLow">@color/m3_refresh_surfaceContainerLow</item>
+        <item name="colorSurfaceContainer">@color/m3_refresh_surfaceContainer</item>
+        <item name="colorSurfaceContainerHigh">@color/m3_refresh_surfaceContainerHigh</item>
+        <item name="colorSurfaceContainerHighest">@color/m3_refresh_surfaceContainerHighest</item>
+        <item name="scrimBackground">@color/m3_refresh_scrimBackground</item>
+    </style>
+
+    <style name="Theme.FocusBlock.BlockScreen" parent="Theme.AppCompat.DayNight.NoActionBar">
+        <item name="android:windowFullscreen">true</item>
+        <item name="android:windowShowWallpaper">false</item>
+        <item name="colorPrimary">@color/m3_refresh_error</item>
+    </style>
+</resources>

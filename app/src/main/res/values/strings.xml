@@ -1,0 +1,146 @@
+<resources xmlns:tools="http://schemas.android.com/tools">
+    <!-- App -->
+    <string name="app_name">FocusBlock</string>
+    <string name="app_name_short">FocusBlock</string>
+
+    <!-- Onboarding -->
+    <string name="onboarding_title">Set up FocusBlock</string>
+    <string name="onboarding_subtitle">Grant permissions to start blocking distractions</string>
+    <string name="onboarding_done">Done</string>
+    <string name="onboarding_next">Next</string>
+    <string name="onboarding_skip">Skip</string>
+    <string name="onboarding_permission_granted">Granted</string>
+    <string name="onboarding_permission_not_granted">Not granted</string>
+    <string name="onboarding_fix">Fix</string>
+    <string name="onboarding_back">Back</string>
+    <string name="onboarding_welcome_title">Welcome to FocusBlock</string>
+    <string name="onboarding_welcome_description">Block distracting apps on a schedule or with Strict Mode.</string>
+    <string name="onboarding_accessibility">Accessibility Service</string>
+    <string name="onboarding_device_admin">Device Administrator</string>
+    <string name="onboarding_local_data_title">All data stays local</string>
+    <string name="onboarding_local_data_description">FocusBlock does not collect or transmit any screen content. No network permission is used.</string>
+
+    <!-- Permissions -->
+    <string name="perm_accessibility">Accessibility Service</string>
+    <string name="perm_accessibility_summary">Detects when a blocked app is opened and shows the block screen.</string>
+    <string name="perm_device_admin">Device Administrator</string>
+    <string name="perm_device_admin_summary">Prevents uninstallation while strict mode is active.</string>
+    <string name="perm_usage_access">Usage Access</string>
+    <string name="perm_usage_access_summary">Fallback detector for when Accessibility is unavailable (non-strict).</string>
+    <string name="perm_notifications">Notifications</string>
+    <string name="perm_notifications_summary">Shows active blocks and time remaining.</string>
+    <string name="perm_exact_alarms">Exact Alarms</string>
+    <string name="perm_exact_alarms_summary">Wakes the device to start/end scheduled blocks.</string>
+    <string name="perm_battery_optimization">Battery Optimization Exemption</string>
+    <string name="perm_battery_optimization_summary">Keeps the blocker reliable in Doze mode.</string>
+
+    <!-- Accessibility service -->
+    <string name="accessibility_service_description">FocusBlock accessibility service. Detects foreground app changes to enforce blocks.</string>
+    <string name="accessibility_service_not_available">Accessibility service is not enabled. Some blocking features will be limited.</string>
+
+    <!-- Home -->
+    <string name="home_title">FocusBlock</string>    <string name="home_active_blocks">Active blocks</string>
+    <string name="home_no_active_blocks">No active blocks</string>
+    <string name="home_quick_block">Quick block</string>
+    <string name="home_profiles">Profiles</string>
+    <string name="home_add_profile">Add profile</string>
+    <string name="home_time_remaining">Time remaining</string>
+    <string name="home_blocked_apps">Blocked apps</string>
+    <string name="quick_block_placeholder">Quick block setup will be completed in the next milestone.</string>
+
+    <!-- Profile editor -->
+    <string name="profile_editor_title">Profile</string>
+    <string name="profile_editor_new">New Profile</string>
+    <string name="profile_name">Profile name</string>
+    <string name="profile_blocked_apps">Blocked apps</string>
+    <string name="profile_pick_apps">Pick apps</string>
+    <string name="profile_apps_count">%1$d apps selected</string>
+    <string name="profile_schedule_placeholder">No schedule set yet</string>
+    <string name="profile_edit_schedule">Edit schedule</string>
+    <string name="profile_schedule">Schedule</string>
+    <string name="profile_strict_mode">Strict Mode</string>
+    <string name="profile_strict_summary">Cannot be turned off, edited, or deleted until the block ends.</string>
+    <string name="profile_strict_confirm_title">Enable Strict Mode?</string>
+    <string name="profile_strict_confirm_message">You will not be able to turn off, edit, shorten, or delete this profile until %s. You can still add apps or extend the end time.</string>
+    <string name="profile_enabled">Enabled</string>
+    <string name="profile_enabled_summary">When enabled, this profile\u2019s schedules can activate blocks.</string>
+
+    <!-- Schedule -->
+    <string name="schedule_recurring">Recurring</string>
+    <string name="schedule_one_off">One-off</string>
+    <string name="schedule_quick">Quick block</string>
+    <string name="schedule_days">Days of week</string>
+    <string name="schedule_start_time">Start time</string>
+    <string name="schedule_end_time">End time</string>
+    <string name="schedule_start_date">Start date</string>
+    <string name="schedule_end_date">End date</string>
+    <string name="schedule_duration">Duration</string>
+    <string name="schedule_minutes">minutes</string>
+    <string name="schedule_hours">hours</string>
+
+    <!-- Block screen -->
+    <string name="block_title">Blocked</string>
+    <string name="block_unknown_app">Unknown app</string>
+    <string name="block_unknown_profile">Unknown profile</string>
+    <string name="block_app_label">App: %s</string>
+    <string name="block_profile_label">Profile: %s</string>
+    <string name="block_time_remaining_label">Time remaining</string>
+    <string name="block_go_home">Go home</string>
+    <string name="block_strict_message">This app is blocked by a strict profile. It cannot be unblocked until the schedule ends.</string>
+
+    <!-- Stats -->
+    <string name="stats_title">Statistics</string>
+    <string name="stats_blocked_attempts">Blocked attempts</string>
+    <string name="stats_focus_time">Total focus time</string>
+    <string name="stats_per_app">Per app</string>
+    <string name="stats_per_day">Per day</string>
+    <string name="stats_no_data">No data yet</string>
+
+    <!-- Settings -->
+    <string name="settings_title">Settings</string>
+    <string name="settings_strict_level">Strict Level</string>
+    <string name="settings_strict_level_summary">How aggressively to protect strict blocks.</string>
+    <string name="settings_strict_targeted">Targeted</string>
+    <string name="settings_strict_targeted_summary">Block only admin, accessibility, app info, and installer screens.</string>
+    <string name="settings_strict_aggressive">Aggressive</string>
+    <string name="settings_strict_aggressive_summary">Block the whole Settings app during strict blocks.</string>
+    <string name="settings_emergency_unlock">Emergency Unlock</string>
+    <string name="settings_emergency_unlock_summary">Off by default. Requires a waiting period before unlocking.</string>
+    <string name="settings_theme">Theme</string>
+    <string name="settings_theme_summary">Light, dark, or follow system.</string>
+    <string name="settings_language">Language</string>
+    <string name="settings_language_summary">App language (RTL-safe, e.g. Persian).</string>
+    <string name="settings_export">Export profiles (JSON)</string>
+    <string name="settings_export_summary">Backup your profiles to a local file.</string>
+    <string name="settings_about">About / Limits</string>
+    <string name="settings_about_summary">What strict mode can and cannot do.</string>
+
+    <!-- About / limits -->
+    <string name="about_title">About &amp; Limits</string>
+    <string name="about_limit_safemode">Strict mode cannot stop Safe Mode.</string>
+    <string name="about_limit_adb">Strict mode cannot stop ADB commands.</string>
+    <string name="about_limit_factory_reset">Strict mode cannot stop a factory reset.</string>
+    <string name="about_limit_second_device">Strict mode cannot stop a second device.</string>
+    <string name="about_privacy">All data stays on this device. Nothing is collected or transmitted.</string>
+
+    <!-- Device admin -->
+    <string name="device_admin_name">FocusBlock Device Administrator</string>
+    <string name="device_admin_description">Prevents FocusBlock from being uninstalled while strict mode is active.</string>
+
+    <!-- Debug -->
+    <string name="debug_shorten_strict">Debug: shorten strict durations</string>
+
+    <!-- Generic -->
+    <string name="ok">OK</string>
+    <string name="cancel">Cancel</string>
+    <string name="save">Save</string>
+    <string name="delete">Delete</string>
+    <string name="add">Add</string>
+    <string name="remove">Remove</string>
+    <string name="close">Close</string>
+
+    <!-- Play disclosure -->
+    <string name="play_disclosure_body">FocusBlock requests Accessibility Service and Device Administrator permissions. Accessibility is used only to detect when a blocked app is brought to the foreground so the block screen can be shown. No screen content is collected, stored, or transmitted. Device Administrator is used only to prevent uninstallation of FocusBlock while a Strict Mode block is active. You can revoke either permission at any time in Settings.</string>
+    <string name="play_disclosure_accessibility">I consent to the Accessibility Service being used to detect blocked apps and enforce blocks locally on this device.</string>
+    <string name="play_disclosure_device_admin">I consent to Device Administrator being used to prevent uninstallation while Strict Mode is active.</string>
+</resources>
