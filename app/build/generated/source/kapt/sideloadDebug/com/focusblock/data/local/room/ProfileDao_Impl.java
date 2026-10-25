@@ -13,6 +13,7 @@ import androidx.room.util.CursorUtil;
 import androidx.room.util.DBUtil;
 import androidx.sqlite.db.SupportSQLiteStatement;
 import com.focusblock.domain.model.Profile;
+import com.focusblock.domain.model.ProfileConverters;
 import com.focusblock.domain.model.Schedule;
 import java.lang.Class;
 import java.lang.Exception;
@@ -62,11 +63,23 @@ public final class ProfileDao_Impl implements ProfileDao {
         } else {
           statement.bindString(2, entity.getName());
         }
-        final int _tmp = entity.getStrict() ? 1 : 0;
-        statement.bindLong(4, _tmp);
-        final int _tmp_1 = entity.getEnabled() ? 1 : 0;
-        statement.bindLong(5, _tmp_1);
+        final String _tmp = ProfileConverters.INSTANCE.blockedAppsToString(entity.getBlockedApps());
+        if (_tmp == null) {
+          statement.bindNull(3);
+        } else {
+          statement.bindString(3, _tmp);
+        }
+        final int _tmp_1 = entity.getStrict() ? 1 : 0;
+        statement.bindLong(4, _tmp_1);
+        final int _tmp_2 = entity.getEnabled() ? 1 : 0;
+        statement.bindLong(5, _tmp_2);
         statement.bindLong(6, entity.getCreatedAt());
+        final String _tmp_3 = ProfileConverters.INSTANCE.schedulesToString(entity.getSchedules());
+        if (_tmp_3 == null) {
+          statement.bindNull(7);
+        } else {
+          statement.bindString(7, _tmp_3);
+        }
       }
     };
     this.__deletionAdapterOfProfile = new EntityDeletionOrUpdateAdapter<Profile>(__db) {
@@ -98,11 +111,23 @@ public final class ProfileDao_Impl implements ProfileDao {
         } else {
           statement.bindString(2, entity.getName());
         }
-        final int _tmp = entity.getStrict() ? 1 : 0;
-        statement.bindLong(4, _tmp);
-        final int _tmp_1 = entity.getEnabled() ? 1 : 0;
-        statement.bindLong(5, _tmp_1);
+        final String _tmp = ProfileConverters.INSTANCE.blockedAppsToString(entity.getBlockedApps());
+        if (_tmp == null) {
+          statement.bindNull(3);
+        } else {
+          statement.bindString(3, _tmp);
+        }
+        final int _tmp_1 = entity.getStrict() ? 1 : 0;
+        statement.bindLong(4, _tmp_1);
+        final int _tmp_2 = entity.getEnabled() ? 1 : 0;
+        statement.bindLong(5, _tmp_2);
         statement.bindLong(6, entity.getCreatedAt());
+        final String _tmp_3 = ProfileConverters.INSTANCE.schedulesToString(entity.getSchedules());
+        if (_tmp_3 == null) {
+          statement.bindNull(7);
+        } else {
+          statement.bindString(7, _tmp_3);
+        }
         statement.bindLong(8, entity.getId());
       }
     };
@@ -232,17 +257,31 @@ public final class ProfileDao_Impl implements ProfileDao {
               _tmpName = _cursor.getString(_cursorIndexOfName);
             }
             final Set<String> _tmpBlockedApps;
+            final String _tmp;
+            if (_cursor.isNull(_cursorIndexOfBlockedApps)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getString(_cursorIndexOfBlockedApps);
+            }
+            _tmpBlockedApps = ProfileConverters.INSTANCE.blockedAppsFromString(_tmp);
             final boolean _tmpStrict;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfStrict);
-            _tmpStrict = _tmp != 0;
-            final boolean _tmpEnabled;
             final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfEnabled);
-            _tmpEnabled = _tmp_1 != 0;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfStrict);
+            _tmpStrict = _tmp_1 != 0;
+            final boolean _tmpEnabled;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfEnabled);
+            _tmpEnabled = _tmp_2 != 0;
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final List<Schedule> _tmpSchedules;
+            final String _tmp_3;
+            if (_cursor.isNull(_cursorIndexOfSchedules)) {
+              _tmp_3 = null;
+            } else {
+              _tmp_3 = _cursor.getString(_cursorIndexOfSchedules);
+            }
+            _tmpSchedules = ProfileConverters.INSTANCE.schedulesFromString(_tmp_3);
             _item = new Profile(_tmpId,_tmpName,_tmpBlockedApps,_tmpStrict,_tmpEnabled,_tmpCreatedAt,_tmpSchedules);
             _result.add(_item);
           }
@@ -289,17 +328,31 @@ public final class ProfileDao_Impl implements ProfileDao {
               _tmpName = _cursor.getString(_cursorIndexOfName);
             }
             final Set<String> _tmpBlockedApps;
+            final String _tmp;
+            if (_cursor.isNull(_cursorIndexOfBlockedApps)) {
+              _tmp = null;
+            } else {
+              _tmp = _cursor.getString(_cursorIndexOfBlockedApps);
+            }
+            _tmpBlockedApps = ProfileConverters.INSTANCE.blockedAppsFromString(_tmp);
             final boolean _tmpStrict;
-            final int _tmp;
-            _tmp = _cursor.getInt(_cursorIndexOfStrict);
-            _tmpStrict = _tmp != 0;
-            final boolean _tmpEnabled;
             final int _tmp_1;
-            _tmp_1 = _cursor.getInt(_cursorIndexOfEnabled);
-            _tmpEnabled = _tmp_1 != 0;
+            _tmp_1 = _cursor.getInt(_cursorIndexOfStrict);
+            _tmpStrict = _tmp_1 != 0;
+            final boolean _tmpEnabled;
+            final int _tmp_2;
+            _tmp_2 = _cursor.getInt(_cursorIndexOfEnabled);
+            _tmpEnabled = _tmp_2 != 0;
             final long _tmpCreatedAt;
             _tmpCreatedAt = _cursor.getLong(_cursorIndexOfCreatedAt);
             final List<Schedule> _tmpSchedules;
+            final String _tmp_3;
+            if (_cursor.isNull(_cursorIndexOfSchedules)) {
+              _tmp_3 = null;
+            } else {
+              _tmp_3 = _cursor.getString(_cursorIndexOfSchedules);
+            }
+            _tmpSchedules = ProfileConverters.INSTANCE.schedulesFromString(_tmp_3);
             _result = new Profile(_tmpId,_tmpName,_tmpBlockedApps,_tmpStrict,_tmpEnabled,_tmpCreatedAt,_tmpSchedules);
           } else {
             _result = null;

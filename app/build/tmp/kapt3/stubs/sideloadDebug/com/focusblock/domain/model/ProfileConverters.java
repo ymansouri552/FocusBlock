@@ -10,6 +10,7 @@ public final class ProfileConverters {
     }
     
     @kotlin.jvm.JvmStatic()
+    @androidx.room.TypeConverter()
     @org.jetbrains.annotations.Nullable()
     public static final java.lang.String blockedAppsToString(@org.jetbrains.annotations.Nullable()
     java.util.Set<java.lang.String> apps) {
@@ -17,6 +18,7 @@ public final class ProfileConverters {
     }
     
     @kotlin.jvm.JvmStatic()
+    @androidx.room.TypeConverter()
     @org.jetbrains.annotations.NotNull()
     public static final java.util.Set<java.lang.String> blockedAppsFromString(@org.jetbrains.annotations.Nullable()
     java.lang.String value) {
@@ -24,6 +26,7 @@ public final class ProfileConverters {
     }
     
     @kotlin.jvm.JvmStatic()
+    @androidx.room.TypeConverter()
     @org.jetbrains.annotations.Nullable()
     public static final java.lang.String schedulesToString(@org.jetbrains.annotations.Nullable()
     java.util.List<com.focusblock.domain.model.Schedule> schedules) {
@@ -31,6 +34,7 @@ public final class ProfileConverters {
     }
     
     @kotlin.jvm.JvmStatic()
+    @androidx.room.TypeConverter()
     @org.jetbrains.annotations.NotNull()
     public static final java.util.List<com.focusblock.domain.model.Schedule> schedulesFromString(@org.jetbrains.annotations.Nullable()
     java.lang.String value) {
