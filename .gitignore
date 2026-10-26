@@ -1,0 +1,134 @@
+# ================================================================
+#  FocusBlock - .gitignore
+#  Android / Kotlin / Gradle project
+# ================================================================
+
+# -------------------------------------------------------
+#  Built application files
+# -------------------------------------------------------
+*.apk
+*.apks
+*.aab
+
+# -------------------------------------------------------
+#  Gradle
+# -------------------------------------------------------
+.gradle/
+.idea/caches/
+.idea/libraries/
+.idea/navEditor.xml
+.idea/assetWizardSettings.xml
+.idea/androidTestMockDeploymentTarget.xml
+.idea/modules.xml
+.idea/workspace.xml
+build/
+
+# -------------------------------------------------------
+#  Local machine-specific configuration
+# -------------------------------------------------------
+local.properties
+
+# -------------------------------------------------------
+#  IDE (IntelliJ / Android Studio)
+# -------------------------------------------------------
+.idea
+*.iml
+*.ipr
+*.iws
+
+# -------------------------------------------------------
+#  OS / environment / temp files
+# -------------------------------------------------------
+.DS_Store
+.DS_Store?
+ehthumbs.db
+Thumbs.db
+Desktop.ini
+*~
+*.tmp
+*.swp
+*.swo
+*.log
+*.log.*
+
+# -------------------------------------------------------
+#  Environment variables / secrets (commit nothing)
+# -------------------------------------------------------
+*.env
+.env
+.env.local
+.env.*.local
+
+# -------------------------------------------------------
+#  Secrets - Android signing, Firebase, etc.
+# -------------------------------------------------------
+*.jks
+*.keystore
+*.properties
+google-services.json
+
+# -------------------------------------------------------
+#  Generated files
+# -------------------------------------------------------
+**/BuildConfig.java
+**/Manifest.java
+app/autogen/
+app/androidTest/
+app/compose_compiler/
+app/generated/
+**/build/
+**/out/
+**/dist/
+
+# -------------------------------------------------------
+#  ProGuard / R8
+# -------------------------------------------------------
+proguard-rules.pro
+proguard-rules.txt
+*.pro
+
+# -------------------------------------------------------
+#  Crashlytics / Firebase
+# -------------------------------------------------------
+crashlytics.properties
+crashlytics-build.properties
+
+# -------------------------------------------------------
+#  NDK / native build artifacts
+# -------------------------------------------------------
+**/obj/
+**/objs/
+**/*.so
+**/*.o
+**/*.dll
+**/*.dylib
+
+# -------------------------------------------------------
+#  Test / coverage
+# -------------------------------------------------------
+**/build/test-results/
+**/build/reports/
+**/build/jacoco/
+
+# -------------------------------------------------------
+#  JetBrains / other tools
+# -------------------------------------------------------
+*.ijm
+*.ijp
+**/.swiftpm/
+**/.vagrant/
+
+# -------------------------------------------------------
+#  Virtual machines / containers
+# -------------------------------------------------------
+.vagrant/
+*.box
+*.qcow2
+*.vmdk
+*.vdi
+*.ovf
+
+# -------------------------------------------------------
+#  Kotlin metadata
+# -------------------------------------------------------
+.kotlin/
