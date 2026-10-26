@@ -1,9 +1,11 @@
 package com.focusblock.domain.usecase
 
 import com.focusblock.domain.model.Profile
-import com.focusblock.domain.model.Schedule
 import com.focusblock.domain.model.ScheduleEngine
 import java.time.Instant
+import java.time.ZoneId
+import java.time.format.DateTimeFormatter
+import java.time.format.FormatStyle
 
 /**
  * Rules governing what may be edited while a strict profile is active.
@@ -54,6 +56,8 @@ object StrictModeRules {
 
     private fun endTime(profile: Profile, now: Instant): String {
         val info = ScheduleEngine.activeProfile(profile, now)
-        return info?.endInstant?.toString() ?: "end time"
+        val endInstant = info?.endInstant ?: return "end time"
+        val zoned = endInstant.atZone(ZoneId.systemDefault())
+        return DateTimeFormatter.ofLocalizedTime(FormatStyle.SHORT).format(zoned)
     }
 }

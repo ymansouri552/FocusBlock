@@ -1,6 +1,5 @@
 package com.focusblock.domain.model
 
-import java.time.Duration
 import java.time.Instant
 import java.time.LocalDateTime
 import java.time.LocalTime
@@ -35,31 +34,33 @@ data class Schedule(
 
     companion object {
         fun fromStorageString(s: String): Schedule? {
-            var type = ScheduleType.RECURRING
-            var days = emptySet<Int>()
-            var startTime: LocalTime? = null
-            var endTime: LocalTime? = null
-            var startDateTime: Instant? = null
-            var endDateTime: Instant? = null
-            var durationMinutes = 0
-            var quickStart: Instant? = null
-            for (kv in s.split(";")) {
-                val idx = kv.indexOf('=')
-                if (idx < 0) continue
-                val k = kv.substring(0, idx).trim()
-                val v = kv.substring(idx + 1).trim()
-                when (k) {
-                    "type" -> type = ScheduleType.valueOf(v)
-                    "days" -> days = if (v.isBlank()) emptySet() else v.split(",").map { it.toIntOrNull() }.filterNotNull().toSet()
-                    "startTime" -> startTime = if (v.isBlank()) null else LocalTime.parse(v)
-                    "endTime" -> endTime = if (v.isBlank()) null else LocalTime.parse(v)
-                    "startDateTime" -> startDateTime = if (v.isBlank()) null else Instant.parse(v)
-                    "endDateTime" -> endDateTime = if (v.isBlank()) null else Instant.parse(v)
-                    "durationMinutes" -> durationMinutes = v.toIntOrNull() ?: 0
-                    "quickStart" -> quickStart = if (v.isBlank()) null else Instant.parse(v)
+            return runCatching {
+                var type = ScheduleType.RECURRING
+                var days = emptySet<Int>()
+                var startTime: LocalTime? = null
+                var endTime: LocalTime? = null
+                var startDateTime: Instant? = null
+                var endDateTime: Instant? = null
+                var durationMinutes = 0
+                var quickStart: Instant? = null
+                for (kv in s.split(";")) {
+                    val idx = kv.indexOf('=')
+                    if (idx < 0) continue
+                    val k = kv.substring(0, idx).trim()
+                    val v = kv.substring(idx + 1).trim()
+                    when (k) {
+                        "type" -> type = ScheduleType.valueOf(v)
+                        "days" -> days = if (v.isBlank()) emptySet() else v.split(",").map { it.toIntOrNull() }.filterNotNull().toSet()
+                        "startTime" -> startTime = if (v.isBlank()) null else LocalTime.parse(v)
+                        "endTime" -> endTime = if (v.isBlank()) null else LocalTime.parse(v)
+                        "startDateTime" -> startDateTime = if (v.isBlank()) null else Instant.parse(v)
+                        "endDateTime" -> endDateTime = if (v.isBlank()) null else Instant.parse(v)
+                        "durationMinutes" -> durationMinutes = v.toIntOrNull() ?: 0
+                        "quickStart" -> quickStart = if (v.isBlank()) null else Instant.parse(v)
+                    }
                 }
-            }
-            return Schedule(type, days, startTime, endTime, startDateTime, endDateTime, durationMinutes, quickStart)
+                Schedule(type, days, startTime, endTime, startDateTime, endDateTime, durationMinutes, quickStart)
+            }.getOrNull()
         }
     }
 }
@@ -71,7 +72,8 @@ data class ActiveProfileInfo(
 )
 
 object ScheduleEngine {
-    private val zone = ZoneId.systemDefault()
+    private val zone: ZoneId
+        get() = ZoneId.systemDefault()
 
     fun isActive(profile: Profile, now: Instant = Instant.now()): Boolean {
         return activeProfile(profile, now) != null
@@ -81,10 +83,9 @@ object ScheduleEngine {
         if (!profile.enabled) return null
         val localNow = now.atZone(zone).toLocalDateTime()
         for (schedule in profile.schedules) {
-            val start = startInstant(schedule, localNow)
-            val end = endInstant(schedule, localNow)
-            if (start != null && end != null && !now.isBefore(start) && now.isBefore(end)) {
-                return ActiveProfileInfo(profile, schedule, end)
+            val window = activeWindow(schedule, now, localNow)
+            if (window != null) {
+                return ActiveProfileInfo(profile, schedule, window.second)
             }
         }
         return null
@@ -98,64 +99,71 @@ object ScheduleEngine {
         return activeProfiles(profiles, now).flatMap { it.profile.blockedApps }.toSet()
     }
 
-    private fun startInstant(schedule: Schedule, localNow: LocalDateTime): Instant? {
+    /**
+     * Returns the (startInstant, endInstant) pair for [schedule] if it is currently active,
+     * or null otherwise.  Handles RECURRING (including overnight windows that cross midnight),
+     * ONE_OFF, and QUICK schedule types.
+     *
+     * For RECURRING schedules, both **today** (offset 0) and **yesterday** (offset -1) are
+     * checked.  This is essential for overnight windows whose end time falls on the *next*
+     * calendar day — e.g. a Monday 22:00 → Tuesday 02:00 window that is still active at
+     * 01:00 on Tuesday must be detected, which the old `recurringEnd()` missed because it
+     * only searched *forward* from today.
+     */
+    private fun activeWindow(schedule: Schedule, now: Instant, localNow: LocalDateTime): Pair<Instant, Instant>? {
         return when (schedule.type) {
-            ScheduleType.RECURRING -> recurringStart(schedule, localNow)
-            ScheduleType.ONE_OFF -> oneOffStart(schedule)
-            ScheduleType.QUICK -> quickStart(schedule)
+            ScheduleType.RECURRING -> activeRecurringWindow(schedule, localNow)
+            ScheduleType.ONE_OFF -> oneOffWindow(schedule, now)
+            ScheduleType.QUICK -> quickWindow(schedule, now)
         }
     }
 
-    private fun endInstant(schedule: Schedule, localNow: LocalDateTime): Instant? {
-        return when (schedule.type) {
-            ScheduleType.RECURRING -> recurringEnd(schedule, localNow)
-            ScheduleType.ONE_OFF -> oneOffEnd(schedule)
-            ScheduleType.QUICK -> quickEnd(schedule)
-        }
-    }
-
-    private fun recurringStart(schedule: Schedule, localNow: LocalDateTime): Instant? {
-        val startTime = schedule.startTime ?: return null
-        val days = schedule.daysOfWeek
-        if (days.isEmpty()) return null
-        var d = localNow.toLocalDate()
-        for (i in 0..6) {
-            val candidate = d.minusDays(i.toLong())
-            if (days.contains(candidate.dayOfWeek.getValue())) {
-                return candidate.atTime(startTime).atZone(zone).toInstant()
-            }
-        }
-        return null
-    }
-
-    private fun recurringEnd(schedule: Schedule, localNow: LocalDateTime): Instant? {
+    private fun activeRecurringWindow(schedule: Schedule, localNow: LocalDateTime): Pair<Instant, Instant>? {
         val startTime = schedule.startTime ?: return null
         val endTime = schedule.endTime ?: return null
         val days = schedule.daysOfWeek
         if (days.isEmpty()) return null
-        var d = localNow.toLocalDate()
-        for (i in 0..13) {
-            val candidate = d.plusDays(i.toLong())
-            if (!days.contains(candidate.dayOfWeek.getValue())) continue
-            val startInstant = candidate.atTime(startTime).atZone(zone).toInstant()
-            val endInstant = if (endTime.isBefore(startTime) || endTime.equals(startTime)) {
-                candidate.plusDays(1).atTime(endTime).atZone(zone).toInstant()
+
+        val today = localNow.toLocalDate()
+        val nowInstant = localNow.atZone(zone).toInstant()
+
+        // Check yesterday (offset -1) then today (offset 0) to catch overnight windows.
+        for (offset in -1L..0L) {
+            val candidateDate = today.plusDays(offset)
+            // Convert ISO day-of-week (1=Monday) to Calendar convention (1=Sunday)
+            val calendarDay = (candidateDate.dayOfWeek.value % 7) + 1
+            if (!days.contains(calendarDay)) continue
+
+            val startInstant = candidateDate.atTime(startTime).atZone(zone).toInstant()
+            val endInstant = if (!endTime.isAfter(startTime)) {
+                // endTime is on the *next* day (overnight window)
+                candidateDate.plusDays(1).atTime(endTime).atZone(zone).toInstant()
             } else {
-                candidate.atTime(endTime).atZone(zone).toInstant()
+                candidateDate.atTime(endTime).atZone(zone).toInstant()
             }
-            val nowInstant = localNow.atZone(zone).toInstant()
-            if ((nowInstant.isAfter(startInstant) || nowInstant.equals(startInstant)) && nowInstant.isBefore(endInstant)) {
-                return endInstant
+
+            if (!nowInstant.isBefore(startInstant) && nowInstant.isBefore(endInstant)) {
+                return startInstant to endInstant
             }
         }
         return null
     }
 
-    private fun oneOffStart(schedule: Schedule): Instant? = schedule.startDateTime
-    private fun oneOffEnd(schedule: Schedule): Instant? = schedule.endDateTime
-    private fun quickStart(schedule: Schedule): Instant? = schedule.quickStartInstant
-    private fun quickEnd(schedule: Schedule): Instant? {
+    private fun oneOffWindow(schedule: Schedule, now: Instant): Pair<Instant, Instant>? {
+        val start = schedule.startDateTime
+        val end = schedule.endDateTime
+        if (start != null && end != null && !now.isBefore(start) && now.isBefore(end)) {
+            return start to end
+        }
+        return null
+    }
+
+    private fun quickWindow(schedule: Schedule, now: Instant): Pair<Instant, Instant>? {
         val start = schedule.quickStartInstant ?: return null
-        return start.plus(schedule.durationMinutes.toLong(), ChronoUnit.MINUTES)
+        val end = start.plus(schedule.durationMinutes.toLong(), ChronoUnit.MINUTES)
+        if (!now.isBefore(start) && now.isBefore(end)) {
+            return start to end
+        }
+        return null
     }
 }

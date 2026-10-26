@@ -25,6 +25,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focusblock.R
 import com.focusblock.data.local.datastore.StrictLevel
 
@@ -34,7 +35,7 @@ fun SettingsScreen(
     viewModel: SettingsViewModel,
     onBack: () -> Unit
 ) {
-    val ui by viewModel.ui
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
 
     Scaffold(
         topBar = {

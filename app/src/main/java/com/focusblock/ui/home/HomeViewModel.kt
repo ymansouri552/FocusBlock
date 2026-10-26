@@ -8,8 +8,10 @@ import com.focusblock.domain.usecase.ToggleProfileUseCase
 import com.focusblock.domain.model.Profile
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
+import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import javax.inject.Inject
 
@@ -20,8 +22,10 @@ class HomeViewModel @Inject constructor(
     private val toggleProfileUseCase: ToggleProfileUseCase
 ) : ViewModel() {
 
-    val profiles: StateFlow<List<Profile>> = getProfilesUseCase.invoke().asStateFlow(emptyList())
-    val blockedPackages: StateFlow<Set<String>> = blockedAppsUseCase.blockedPackagesNow().asStateFlow(emptySet())
+    val profiles: StateFlow<List<Profile>> = getProfilesUseCase.invoke()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptyList())
+    val blockedPackages: StateFlow<Set<String>> = blockedAppsUseCase.blockedPackagesNow()
+        .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), emptySet())
 
     private val _ui = MutableStateFlow(HomeUiState())
     val ui: StateFlow<HomeUiState> = _ui.asStateFlow()

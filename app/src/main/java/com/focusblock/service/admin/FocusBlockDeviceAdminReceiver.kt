@@ -4,7 +4,6 @@ import android.app.admin.DeviceAdminReceiver
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
-import com.focusblock.di.FocusBlockApplication
 
 class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -21,9 +20,5 @@ class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
         return "Disabling device administration will allow FocusBlock to be uninstalled and strict blocks to be bypassed. " +
             "Keep it enabled while any strict profile is active."
-    }
-
-    override fun onUninstallBlocked(context: Context, intent: Intent) {
-        super.onUninstallBlocked(context, intent)
     }
 }

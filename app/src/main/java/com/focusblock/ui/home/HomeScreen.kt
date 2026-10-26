@@ -43,7 +43,7 @@ import com.focusblock.R
 import com.focusblock.domain.model.ScheduleEngine
 import com.focusblock.domain.usecase.StrictModeRules
 import androidx.hilt.navigation.compose.hiltViewModel
-import kotlinx.coroutines.launch
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import java.time.Duration
 import java.time.Instant
 
@@ -55,18 +55,16 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
-    val ui by viewModel.ui
-    val profiles by viewModel.profiles
-    val blockedPackages by viewModel.blockedPackages
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val profiles by viewModel.profiles.collectAsStateWithLifecycle()
+    val blockedPackages by viewModel.blockedPackages.collectAsStateWithLifecycle()
 
     var showQuickBlock by remember { mutableStateOf(false) }
-    val scope = rememberCoroutineScope()
     val snackbarHostState = remember { SnackbarHostState() }
 
-    ui.error?.let { error ->
-        LaunchedEffect(key1 = error) {
-            scope.launch { snackbarHostState.showSnackbar(error) }
-        }
+    val error = ui.error
+    LaunchedEffect(error) {
+        if (error != null) snackbarHostState.showSnackbar(error)
     }
 
     Scaffold(
@@ -185,10 +183,9 @@ private fun QuickBlockDialog(onDismiss: () -> Unit, onBlock: (Set<String>) -> Un
         dismissButton = {
             TextButton(onClick = onDismiss) { Text(stringResource(id = R.string.cancel)) }
         },
-        title = { Text(stringResource(id = R.string.home_quick_block)) }
-    ) {
-        Text(text = stringResource(id = R.string.quick_block_placeholder))
-    }
+        title = { Text(stringResource(id = R.string.home_quick_block)) },
+        text = { Text(text = stringResource(id = R.string.quick_block_placeholder)) }
+    )
 }
 
 private fun formatCountdown(ms: Long): String {

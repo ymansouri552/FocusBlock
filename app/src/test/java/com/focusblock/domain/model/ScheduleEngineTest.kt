@@ -77,6 +77,20 @@ class ScheduleEngineTest {
     }
 
     @Test
+    fun overnight_recurring_active_after_midnight() {
+        // Monday 22:00 → Tuesday 02:00, days = {2} (Monday only).
+        // At Tuesday 01:00 the window is still active because it started Monday.
+        val now = instant(2026, 10, 20, 1, 0) // Tuesday
+        val p = profile("Night", setOf("com.app.b"), schedules = listOf(recurring(setOf(2), LocalTime.of(22, 0), LocalTime.of(2, 0))))
+        assertTrue(isActive(p, now))
+        val info = activeProfiles(listOf(p), now).singleOrNull()
+        assertNotNull(info)
+        // End instant should be Tuesday 02:00
+        val expectedEnd = instant(2026, 10, 20, 2, 0)
+        assertEquals(expectedEnd, info.endInstant)
+    }
+
+    @Test
     fun one_off_within_range_is_active() {
         val start = instant(2026, 10, 19, 10, 0)
         val end = instant(2026, 10, 19, 12, 0)

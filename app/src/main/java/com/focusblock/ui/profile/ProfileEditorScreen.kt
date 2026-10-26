@@ -28,6 +28,7 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focusblock.R
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.usecase.StrictModeRules
@@ -39,8 +40,8 @@ fun ProfileEditorScreen(
     viewModel: ProfileEditorViewModel,
     onBack: () -> Unit
 ) {
-    val ui by viewModel.ui
-    val profile by viewModel.profile
+    val ui by viewModel.ui.collectAsStateWithLifecycle()
+    val profile = viewModel.profile
 
     val now = Instant.now()
     val isStrictActive = StrictModeRules.isStrictActive(profile, now)
