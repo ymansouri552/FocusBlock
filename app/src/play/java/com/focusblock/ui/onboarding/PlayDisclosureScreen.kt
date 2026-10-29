@@ -1,14 +1,29 @@
 package com.focusblock.ui.onboarding
 
-import androidx.compose.foundation.layout.*
-import androidx.compose.material3.*
+import androidx.compose.foundation.layout.Column
+import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
+import androidx.compose.foundation.layout.padding
+import androidx.compose.material3.Button
+import androidx.compose.material3.Checkbox
+import androidx.compose.material3.ExperimentalMaterial3Api
+import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Text
+import androidx.compose.material3.TopAppBar
+import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import com.focusblock.R
 import com.focusblock.ui.theme.FocusBlockTheme
 
+@OptIn(ExperimentalMaterial3Api::class)
 @Composable
 fun PlayDisclosureScreen(
     onAccessibilityConsent: () -> Unit,
@@ -23,11 +38,16 @@ fun PlayDisclosureScreen(
             topBar = {
                 TopAppBar(
                     title = { Text("Important permissions") },
-                    colors = TopAppBarDefaults.colors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
+                    colors = TopAppBarDefaults.topAppBarColors(containerColor = MaterialTheme.colorScheme.surfaceContainerHigh)
                 )
             }
         ) { innerPadding ->
-            Column(modifier = Modifier.padding(innerPadding).fillMaxSize()) {
+            Column(
+                modifier = Modifier
+                    .padding(innerPadding)
+                    .fillMaxSize()
+                    .padding(16.dp)
+            ) {
                 Text(
                     text = "FocusBlock Accessibility & Device Admin Disclosure",
                     style = MaterialTheme.typography.headlineMedium,
@@ -41,7 +61,10 @@ fun PlayDisclosureScreen(
 
                 Checkbox(
                     checked = accessibilityConsent,
-                    onCheckedChange = { onAccessibilityConsent(); accessibilityConsent = it },
+                    onCheckedChange = {
+                        onAccessibilityConsent()
+                        accessibilityConsent = it
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
@@ -52,7 +75,10 @@ fun PlayDisclosureScreen(
 
                 Checkbox(
                     checked = deviceAdminConsent,
-                    onCheckedChange = { onDeviceAdminConsent(); deviceAdminConsent = it },
+                    onCheckedChange = {
+                        onDeviceAdminConsent()
+                        deviceAdminConsent = it
+                    },
                     modifier = Modifier.fillMaxWidth()
                 )
                 Text(
@@ -71,6 +97,3 @@ fun PlayDisclosureScreen(
         }
     }
 }
-
-@Composable
-private fun stringResource(id: Int): String = androidx.compose.ui.res.stringResource(id)

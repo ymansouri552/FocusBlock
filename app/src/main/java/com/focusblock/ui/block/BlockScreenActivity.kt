@@ -4,23 +4,48 @@ import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
 import androidx.activity.compose.setContent
+import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.width
+import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.shape.RoundedCornerShape
+import androidx.compose.material.icons.Icons
+import androidx.compose.material.icons.filled.Home
+import androidx.compose.material.icons.filled.Lock
+import androidx.compose.material.icons.filled.Security
+import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
+import androidx.compose.material3.Card
+import androidx.compose.material3.CardDefaults
+import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
+import androidx.compose.ui.graphics.Brush
+import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
+import androidx.compose.ui.text.font.FontFamily
+import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import com.focusblock.R
 import com.focusblock.ui.theme.FocusBlockTheme
+import com.focusblock.ui.theme.LocalCustomColors
 
 class BlockScreenActivity : ComponentActivity() {
     override fun onCreate(savedInstanceState: Bundle?) {
@@ -41,7 +66,7 @@ class BlockScreenActivity : ComponentActivity() {
         )
 
         setContent {
-            FocusBlockTheme {
+            FocusBlockTheme(darkTheme = true) {
                 BlockScreen(
                     appName = appName,
                     profileName = profileName,
@@ -69,45 +94,192 @@ fun BlockScreen(
     isStrict: Boolean,
     onGoHome: () -> Unit
 ) {
-    Box(modifier = Modifier.fillMaxSize()) {
+    val customColors = LocalCustomColors.current
+
+    val bgGradient = Brush.verticalGradient(
+        colors = listOf(
+            Color(0xFF0F172A),
+            Color(0xFF0B0F19),
+            Color(0xFF05070D)
+        )
+    )
+
+    Box(
+        modifier = Modifier
+            .fillMaxSize()
+            .background(bgGradient)
+            .padding(24.dp)
+    ) {
         Column(
-            modifier = Modifier.fillMaxSize().padding(24.dp),
+            modifier = Modifier
+                .fillMaxSize(),
             horizontalAlignment = Alignment.CenterHorizontally,
             verticalArrangement = Arrangement.Center
         ) {
-            Text(
-                text = stringResource(id = R.string.block_title),
-                style = MaterialTheme.typography.headlineLarge,
-                color = MaterialTheme.colorScheme.error
-            )
-            Spacer(modifier = Modifier.height(24.dp))
-            Text(text = stringResource(id = R.string.block_app_label, appName))
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(text = stringResource(id = R.string.block_profile_label, profileName))
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = stringResource(id = R.string.block_time_remaining_label) + ": " + formatTime(timeRemainingMs)
-            )
-            Spacer(modifier = Modifier.height(32.dp))
-            if (isStrict) {
-                Text(
-                    text = stringResource(id = R.string.block_strict_message),
-                    style = MaterialTheme.typography.bodySmall
-                )
-                Spacer(modifier = Modifier.height(16.dp))
+            // Glowing Shield Icon
+            Surface(
+                shape = CircleShape,
+                color = if (isStrict) customColors.strictAmber.copy(alpha = 0.15f)
+                else MaterialTheme.colorScheme.primary.copy(alpha = 0.15f),
+                border = BorderStroke(
+                    1.5.dp,
+                    if (isStrict) customColors.strictAmber.copy(alpha = 0.6f)
+                    else MaterialTheme.colorScheme.primary.copy(alpha = 0.6f)
+                ),
+                modifier = Modifier.size(80.dp)
+            ) {
+                Box(contentAlignment = Alignment.Center) {
+                    Icon(
+                        imageVector = if (isStrict) Icons.Default.Security else Icons.Default.Shield,
+                        contentDescription = null,
+                        tint = if (isStrict) customColors.strictAmber else MaterialTheme.colorScheme.primary,
+                        modifier = Modifier.size(40.dp)
+                    )
+                }
             }
-            Button(onClick = onGoHome) {
-                Text(text = stringResource(id = R.string.block_go_home))
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            Text(
+                text = "Take a breath",
+                style = MaterialTheme.typography.labelLarge,
+                color = Color.White.copy(alpha = 0.6f),
+                letterSpacing = 2.sp,
+                fontWeight = FontWeight.SemiBold
+            )
+
+            Spacer(modifier = Modifier.height(6.dp))
+
+            Text(
+                text = "This App is Blocked",
+                style = MaterialTheme.typography.headlineLarge,
+                fontWeight = FontWeight.Bold,
+                color = Color.White
+            )
+
+            Spacer(modifier = Modifier.height(16.dp))
+
+            // App Name & Profile Badges
+            Row(
+                horizontalArrangement = Arrangement.spacedBy(8.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = Color.White.copy(alpha = 0.1f)
+                ) {
+                    Text(
+                        text = appName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = Color.White,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+
+                Surface(
+                    shape = RoundedCornerShape(8.dp),
+                    color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
+                ) {
+                    Text(
+                        text = profileName,
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.Medium,
+                        color = MaterialTheme.colorScheme.onPrimaryContainer,
+                        modifier = Modifier.padding(horizontal = 12.dp, vertical = 6.dp)
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(32.dp))
+
+            // Time Remaining Display Card
+            Card(
+                modifier = Modifier.fillMaxWidth(0.9f),
+                shape = RoundedCornerShape(20.dp),
+                colors = CardDefaults.cardColors(containerColor = Color.White.copy(alpha = 0.05f)),
+                border = BorderStroke(1.dp, Color.White.copy(alpha = 0.1f))
+            ) {
+                Column(
+                    modifier = Modifier
+                        .fillMaxWidth()
+                        .padding(20.dp),
+                    horizontalAlignment = Alignment.CenterHorizontally
+                ) {
+                    Text(
+                        text = "TIME REMAINING",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = Color.White.copy(alpha = 0.6f),
+                        letterSpacing = 1.5.sp,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text(
+                        text = formatTime(timeRemainingMs),
+                        style = MaterialTheme.typography.displaySmall.copy(
+                            fontFamily = FontFamily.Monospace,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.sp
+                        ),
+                        color = Color.White
+                    )
+                }
+            }
+
+            Spacer(modifier = Modifier.height(24.dp))
+
+            if (isStrict) {
+                Surface(
+                    modifier = Modifier.fillMaxWidth(0.9f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = customColors.strictContainer.copy(alpha = 0.5f),
+                    border = BorderStroke(1.dp, customColors.strictAmber.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Lock,
+                            contentDescription = null,
+                            tint = customColors.strictAmber,
+                            modifier = Modifier.size(18.dp)
+                        )
+                        Spacer(modifier = Modifier.width(10.dp))
+                        Text(
+                            text = "Strict Mode Enforced · Bypassing is locked until the session finishes.",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = customColors.strictOnContainer
+                        )
+                    }
+                }
+                Spacer(modifier = Modifier.height(24.dp))
+            }
+
+            Button(
+                onClick = onGoHome,
+                modifier = Modifier
+                    .fillMaxWidth(0.8f)
+                    .height(52.dp),
+                shape = RoundedCornerShape(14.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = MaterialTheme.colorScheme.primary,
+                    contentColor = MaterialTheme.colorScheme.onPrimary
+                )
+            ) {
+                Icon(Icons.Default.Home, contentDescription = null, modifier = Modifier.size(20.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text("Return to Home", fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
     }
 }
 
 private fun formatTime(ms: Long): String {
-    val totalSeconds = ms / 1000
+    val totalSeconds = (ms / 1000).coerceAtLeast(0)
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
     val seconds = totalSeconds % 60
-    return if (hours > 0) "%d:%02d:%02d".format(hours, minutes, seconds)
+    return if (hours > 0) "%02d:%02d:%02d".format(hours, minutes, seconds)
     else "%02d:%02d".format(minutes, seconds)
 }

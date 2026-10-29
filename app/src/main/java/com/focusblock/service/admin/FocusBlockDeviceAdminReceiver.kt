@@ -4,6 +4,7 @@ import android.app.admin.DeviceAdminReceiver
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.focusblock.domain.usecase.StrictModeRules
 
 class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -18,7 +19,11 @@ class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
     }
 
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
-        return "Disabling device administration will allow FocusBlock to be uninstalled and strict blocks to be bypassed. " +
-            "Keep it enabled while any strict profile is active."
+        val isIndependentArmed = StrictModeRules.independentState.isEffectivelyActive()
+        return if (isIndependentArmed) {
+            "Strict Mode is currently ARMED under active terms! Disabling Device Administration is prohibited until terms expire."
+        } else {
+            "Disabling device administration will allow FocusBlock to be uninstalled and strict blocks to be bypassed. Keep it enabled while strict mode or any strict profile is active."
+        }
     }
 }

@@ -4,6 +4,9 @@ import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.Schedule
 import com.focusblock.domain.model.ScheduleEngine
 import com.focusblock.domain.model.ScheduleType
+import com.focusblock.domain.model.StrictModeState
+import com.focusblock.domain.model.StrictTermType
+import java.time.Duration
 import java.time.Instant
 import java.time.LocalTime
 import java.time.ZoneId
@@ -107,6 +110,44 @@ class StrictModeRulesTest {
         val p = Profile(id = 2, name = "Normal", blockedApps = setOf("com.app.a"), strict = false, enabled = true,
             schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
         val result = StrictModeRules.canDeactivate(p, activeNow())
+        assertTrue(result.allowed)
+    }
+
+    @Test
+    fun independent_strict_armed_cannot_deactivate_recurring_when_schedule_inactive() {
+        val armedState = StrictModeState(
+            isArmed = true,
+            termType = StrictTermType.HOURS_24,
+            endInstant = inactiveNow().plus(Duration.ofHours(12))
+        )
+        val p = strictProfile(enabled = true, schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
+        val result = StrictModeRules.canDeactivate(p, inactiveNow(), armedState)
+        assertFalse(result.allowed)
+        assertTrue(result.reason != null && result.reason.contains("Strict Mode is armed"))
+    }
+
+    @Test
+    fun independent_strict_armed_cannot_delete_or_remove_apps() {
+        val armedState = StrictModeState(
+            isArmed = true,
+            termType = StrictTermType.DAYS_3,
+            endInstant = inactiveNow().plus(Duration.ofDays(2))
+        )
+        val p = strictProfile(enabled = true, schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
+        assertFalse(StrictModeRules.canDelete(p, inactiveNow(), armedState).allowed)
+        assertFalse(StrictModeRules.canRemoveApps(p, inactiveNow(), armedState).allowed)
+        assertTrue(StrictModeRules.canAddApps(p, inactiveNow()).allowed)
+    }
+
+    @Test
+    fun independent_strict_expired_allows_deactivation_when_schedule_inactive() {
+        val expiredState = StrictModeState(
+            isArmed = true,
+            termType = StrictTermType.HOURS_4,
+            endInstant = inactiveNow().minus(Duration.ofHours(1))
+        )
+        val p = strictProfile(enabled = true, schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
+        val result = StrictModeRules.canDeactivate(p, inactiveNow(), expiredState)
         assertTrue(result.allowed)
     }
 }
