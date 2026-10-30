@@ -7,6 +7,7 @@ import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.model.StrictTermType
 import com.focusblock.domain.usecase.BlockedAppsUseCase
+import com.focusblock.domain.usecase.EmergencyUnlockUseCase
 import com.focusblock.domain.usecase.GetProfilesUseCase
 import com.focusblock.domain.usecase.QuickBlockUseCase
 import com.focusblock.domain.usecase.StrictModeRules
@@ -30,6 +31,7 @@ class HomeViewModel @Inject constructor(
     private val toggleProfileUseCase: ToggleProfileUseCase,
     private val quickBlockUseCase: QuickBlockUseCase,
     private val settingsDataStore: SettingsDataStore,
+    private val emergencyUnlockUseCase: EmergencyUnlockUseCase,
     val permissionChecker: SystemPermissionChecker
 ) : ViewModel() {
 
@@ -92,8 +94,24 @@ class HomeViewModel @Inject constructor(
             if (!current.isArmed) {
                 return@launch
             }
+            if (current.termType == StrictTermType.ONGOING) {
+                val unlockSuccess = emergencyUnlockUseCase.confirmUnlock(now)
+                if (!unlockSuccess) {
+                    _ui.value = _ui.value.copy(
+                        error = "Ongoing Strict Mode has no automatic expiration. Use Emergency Unlock in Settings to disarm."
+                    )
+                    return@launch
+                }
+                _ui.value = _ui.value.copy(error = null)
+                return@launch
+            }
             if (current.endInstant != null && now.isBefore(current.endInstant)) {
-                _ui.value = _ui.value.copy(error = "Cannot disarm: Strict Mode term has not expired yet.")
+                val unlockSuccess = emergencyUnlockUseCase.confirmUnlock(now)
+                if (!unlockSuccess) {
+                    _ui.value = _ui.value.copy(error = "Cannot disarm: Strict Mode term has not expired yet.")
+                    return@launch
+                }
+                _ui.value = _ui.value.copy(error = null)
                 return@launch
             }
             settingsDataStore.disarmStrictMode()

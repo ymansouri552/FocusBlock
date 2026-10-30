@@ -38,25 +38,31 @@ class SystemPermissionChecker @Inject constructor(
     }
 
     fun isAccessibilityGranted(): Boolean {
-        val componentName = ComponentName(context, FocusBlockAccessibilityService::class.java)
-        val enabledServices = Settings.Secure.getString(
-            context.contentResolver,
-            Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
-        ) ?: return false
-        return enabledServices.split(':').any {
-            ComponentName.unflattenFromString(it) == componentName
-        }
+        return runCatching {
+            val componentName = ComponentName(context, FocusBlockAccessibilityService::class.java)
+            val enabledServices = Settings.Secure.getString(
+                context.contentResolver,
+                Settings.Secure.ENABLED_ACCESSIBILITY_SERVICES
+            ) ?: return false
+            enabledServices.split(':').any {
+                ComponentName.unflattenFromString(it) == componentName
+            }
+        }.getOrDefault(false)
     }
 
     fun isDeviceAdminGranted(): Boolean {
-        val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return false
-        val adminComponent = ComponentName(context, FocusBlockDeviceAdminReceiver::class.java)
-        return dpm.isAdminActive(adminComponent)
+        return runCatching {
+            val dpm = context.getSystemService(Context.DEVICE_POLICY_SERVICE) as? DevicePolicyManager ?: return false
+            val adminComponent = ComponentName(context, FocusBlockDeviceAdminReceiver::class.java)
+            dpm.isAdminActive(adminComponent)
+        }.getOrDefault(false)
     }
 
     fun isBatteryOptimizationIgnored(): Boolean {
-        val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
-        return powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        return runCatching {
+            val powerManager = context.getSystemService(Context.POWER_SERVICE) as? PowerManager ?: return true
+            powerManager.isIgnoringBatteryOptimizations(context.packageName)
+        }.getOrDefault(true)
     }
 
     fun getAccessibilitySettingsIntent(): Intent {

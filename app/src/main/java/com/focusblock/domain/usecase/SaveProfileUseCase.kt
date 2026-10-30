@@ -26,11 +26,16 @@ class SaveProfileUseCase @Inject constructor(private val repository: ProfileRepo
         if (!StrictModeRules.isStrictActive(current, now)) return StrictModeRules.EditResult(true, null)
         val endBefore = ScheduleEngine.activeProfile(current, now)?.endInstant
         val endAfter = ScheduleEngine.activeProfile(updated, now)?.endInstant
+        val scheduleAllowed = if (endBefore != null) {
+            endAfter != null && !endAfter.isBefore(endBefore)
+        } else {
+            true
+        }
         val allowed =
-            updated.strict == current.strict &&
-                updated.enabled == current.enabled &&
+            updated.strict &&
+                updated.enabled &&
                 updated.blockedApps.containsAll(current.blockedApps) &&
-                (endAfter == null || endBefore == null || !endAfter.isBefore(endBefore))
+                scheduleAllowed
         return if (allowed) StrictModeRules.EditResult(true, null)
         else StrictModeRules.EditResult(false, "Strict profile is active: only adding apps or extending the end time is allowed.")
     }

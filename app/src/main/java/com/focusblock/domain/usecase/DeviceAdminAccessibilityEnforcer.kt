@@ -11,6 +11,7 @@ import androidx.core.content.ContextCompat
 import com.focusblock.domain.model.Profile
 import com.focusblock.service.admin.FocusBlockDeviceAdminReceiver
 import com.focusblock.service.accessibility.FocusBlockAccessibilityService
+import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -21,7 +22,8 @@ import javax.inject.Singleton
  */
 @Singleton
 class DeviceAdminAccessibilityEnforcer @Inject constructor(
-    private val context: Context
+    private val context: Context,
+    private val emergencyUnlockUseCase: EmergencyUnlockUseCase
 ) : StrictEnforcer {
 
     private val dpm: DevicePolicyManager
@@ -67,8 +69,9 @@ class DeviceAdminAccessibilityEnforcer @Inject constructor(
     }
 
     override fun requestEmergencyUnlock(): Boolean {
-        // Emergency unlock is off by default and requires configuration before a strict block starts.
-        return false
+        return runBlocking {
+            emergencyUnlockUseCase.requestUnlock()
+        }
     }
 
     fun requestUninstallBlock() {

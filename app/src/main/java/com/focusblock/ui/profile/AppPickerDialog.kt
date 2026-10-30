@@ -38,6 +38,7 @@ import androidx.compose.material3.TextButton
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -261,18 +262,14 @@ private fun AppPickerRow(
         palette[app.packageName.hashCode().absoluteValue % palette.size]
     }
 
-    // Load actual app icon from PackageManager
-    val iconBitmap = remember(app.packageName) {
-        runCatching {
-            val drawable = context.packageManager.getApplicationIcon(app.packageName)
-            val width = drawable.intrinsicWidth.takeIf { it > 0 } ?: 96
-            val height = drawable.intrinsicHeight.takeIf { it > 0 } ?: 96
-            val bitmap = Bitmap.createBitmap(width, height, Bitmap.Config.ARGB_8888)
-            val canvas = Canvas(bitmap)
-            drawable.setBounds(0, 0, canvas.width, canvas.height)
-            drawable.draw(canvas)
-            bitmap.asImageBitmap()
-        }.getOrNull()
+    // Asynchronously load app icon off the main thread with LRU memory caching
+    val iconBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
+        initialValue = AppIconCache.get(app.packageName),
+        key1 = app.packageName
+    ) {
+        if (value == null) {
+            value = AppIconCache.loadIcon(context, app.packageName)
+        }
     }
 
     Row(
@@ -289,9 +286,10 @@ private fun AppPickerRow(
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(40.dp)
         ) {
-            if (iconBitmap != null) {
+            val currentIcon = iconBitmap
+            if (currentIcon != null) {
                 Image(
-                    bitmap = iconBitmap,
+                    bitmap = currentIcon,
                     contentDescription = app.label,
                     modifier = Modifier
                         .fillMaxSize()

@@ -23,9 +23,14 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            dataStore.flowString(SettingsKeys.strictLevel, StrictLevel.TARGETED.value).first().let { level ->
-                _ui.value = _ui.value.copy(strictLevel = level)
-            }
+            val level = dataStore.flowString(SettingsKeys.strictLevel, StrictLevel.TARGETED.value).first()
+            val emergencyEnabled = dataStore.getEmergencyUnlockEnabled()
+            val emergencyMins = dataStore.getEmergencyUnlockMinutes()
+            _ui.value = SettingsUiState(
+                strictLevel = level,
+                emergencyUnlockEnabled = emergencyEnabled,
+                emergencyUnlockMinutes = emergencyMins
+            )
         }
     }
 
@@ -36,7 +41,23 @@ class SettingsViewModel @Inject constructor(
         }
     }
 
+    fun setEmergencyUnlockEnabled(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.setEmergencyUnlockEnabled(enabled)
+            _ui.value = _ui.value.copy(emergencyUnlockEnabled = enabled)
+        }
+    }
+
+    fun setEmergencyUnlockMinutes(minutes: Int) {
+        viewModelScope.launch {
+            dataStore.setEmergencyUnlockMinutes(minutes)
+            _ui.value = _ui.value.copy(emergencyUnlockMinutes = minutes)
+        }
+    }
+
     data class SettingsUiState(
-        val strictLevel: String = StrictLevel.TARGETED.value
+        val strictLevel: String = StrictLevel.TARGETED.value,
+        val emergencyUnlockEnabled: Boolean = false,
+        val emergencyUnlockMinutes: Int = 15
     )
 }

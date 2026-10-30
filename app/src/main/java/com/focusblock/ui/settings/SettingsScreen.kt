@@ -18,6 +18,7 @@ import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Info
+import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Palette
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Shield
@@ -30,6 +31,7 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
+import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -69,7 +71,7 @@ fun SettingsScreen(
                     IconButton(onClick = onBack) {
                         Icon(
                             imageVector = Icons.AutoMirrored.Filled.ArrowBack,
-                            contentDescription = stringResource(id = R.string.close)
+                            contentDescription = "Back"
                         )
                     }
                 },
@@ -78,13 +80,13 @@ fun SettingsScreen(
                 )
             )
         }
-    ) { innerPadding ->
+    ) { paddingValues ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(innerPadding)
+                .padding(paddingValues)
                 .verticalScroll(rememberScrollState())
-                .padding(horizontal = 16.dp, vertical = 12.dp),
+                .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
             // ── Strict Protection Level Card ────────────────────────────────
@@ -119,13 +121,15 @@ fun SettingsScreen(
                     StrictLevel.entries.forEach { level ->
                         val isSelected = ui.strictLevel == level.value
                         Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                            else MaterialTheme.colorScheme.surfaceContainerHigh.copy(alpha = 0.4f),
+                            shape = RoundedCornerShape(12.dp),
+                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                            else MaterialTheme.colorScheme.surface,
+                            border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
+                            else BorderStroke(1.dp, customColors.cardBorder),
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(10.dp))
+                                .clip(RoundedCornerShape(12.dp))
                                 .clickable { viewModel.setStrictLevel(level.value) }
                         ) {
                             Row(
@@ -163,6 +167,61 @@ fun SettingsScreen(
                 }
             }
 
+            // ── Emergency Unlock Card ───────────────────────────────────────
+            Card(
+                modifier = Modifier.fillMaxWidth(),
+                shape = RoundedCornerShape(16.dp),
+                colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
+                border = BorderStroke(1.dp, customColors.cardBorder)
+            ) {
+                Column(modifier = Modifier.padding(16.dp)) {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Row(
+                            verticalAlignment = Alignment.CenterVertically,
+                            modifier = Modifier.weight(1f)
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.LockOpen,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(20.dp)
+                            )
+                            Spacer(modifier = Modifier.width(8.dp))
+                            Column {
+                                Text(
+                                    text = stringResource(id = R.string.settings_emergency_unlock),
+                                    style = MaterialTheme.typography.titleMedium,
+                                    fontWeight = FontWeight.Bold
+                                )
+                                Text(
+                                    text = stringResource(id = R.string.settings_emergency_unlock_summary),
+                                    style = MaterialTheme.typography.bodySmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                                )
+                            }
+                        }
+                        Switch(
+                            checked = ui.emergencyUnlockEnabled,
+                            onCheckedChange = { viewModel.setEmergencyUnlockEnabled(it) }
+                        )
+                    }
+
+                    if (ui.emergencyUnlockEnabled) {
+                        Spacer(modifier = Modifier.height(12.dp))
+                        Text(
+                            text = "Mandatory waiting delay: ${ui.emergencyUnlockMinutes} minutes",
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.primary,
+                            fontWeight = FontWeight.SemiBold
+                        )
+                    }
+                }
+            }
+
             // ── Appearance Card ─────────────────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
@@ -193,7 +252,7 @@ fun SettingsScreen(
                 }
             }
 
-            // ── Device Limits & Security ────────────────────────────────────
+            // ── About Card ──────────────────────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -215,37 +274,19 @@ fun SettingsScreen(
                             fontWeight = FontWeight.Bold
                         )
                     }
+                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = stringResource(id = R.string.about_privacy),
+                        text = "FocusBlock v1.0.0",
+                        style = MaterialTheme.typography.bodyMedium,
+                        fontWeight = FontWeight.SemiBold
+                    )
+                    Text(
+                        text = "Privacy-first app blocker with scheduled blocks and tamper-proof strict mode.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(10.dp))
-
-                    val limits = listOf(
-                        stringResource(id = R.string.about_limit_safemode),
-                        stringResource(id = R.string.about_limit_adb),
-                        stringResource(id = R.string.about_limit_factory_reset),
-                        stringResource(id = R.string.about_limit_second_device)
-                    )
-
-                    limits.forEach { limit ->
-                        Row(
-                            modifier = Modifier.padding(vertical = 2.dp),
-                            verticalAlignment = Alignment.Top
-                        ) {
-                            Text("• ", color = MaterialTheme.colorScheme.onSurfaceVariant, fontWeight = FontWeight.Bold)
-                            Text(
-                                text = limit,
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
                 }
             }
-
-            Spacer(modifier = Modifier.height(16.dp))
         }
     }
 }
