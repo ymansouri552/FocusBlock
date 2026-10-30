@@ -35,6 +35,7 @@ import androidx.compose.material.icons.filled.Schedule
 import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Shield
+import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
@@ -72,6 +73,7 @@ import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
@@ -82,6 +84,7 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focusblock.R
 import com.focusblock.domain.model.ActiveProfileInfo
 import com.focusblock.domain.model.Profile
+import com.focusblock.domain.usecase.SystemPermissionsState
 import com.focusblock.domain.model.ScheduleEngine
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.usecase.StrictModeRules
@@ -103,13 +106,16 @@ fun HomeScreen(
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val blockedPackages by viewModel.blockedPackages.collectAsStateWithLifecycle()
     val strictModeState by viewModel.strictModeState.collectAsStateWithLifecycle()
+    val permissionsState by viewModel.permissionsState.collectAsStateWithLifecycle()
     val customColors = LocalCustomColors.current
+    val context = LocalContext.current
 
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) {
         while (true) {
             delay(1000)
             now = Instant.now()
+            viewModel.refreshPermissions()
         }
     }
 
@@ -191,6 +197,34 @@ fun HomeScreen(
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
+            // ── System Permissions & Health Status ────────────────────────────
+            item {
+                PermissionsHealthCard(
+                    permissionsState = permissionsState,
+                    onFixAccessibility = {
+                        try {
+                            context.startActivity(viewModel.permissionChecker.getAccessibilitySettingsIntent())
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    },
+                    onFixAdmin = {
+                        try {
+                            context.startActivity(viewModel.permissionChecker.getDeviceAdminRequestIntent())
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    },
+                    onFixBattery = {
+                        try {
+                            context.startActivity(viewModel.permissionChecker.getBatteryOptimizationIntent())
+                        } catch (e: Exception) {
+                            // ignore
+                        }
+                    }
+                )
+            }
+
             // ── Hero Focus Dashboard ─────────────────────────────────────────
             item {
                 FocusHeroCard(
@@ -1100,4 +1134,201 @@ private fun formatCountdown(ms: Long): String {
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return if (hours > 0) "%dh %02dm".format(hours, minutes) else "%dm".format(minutes)
+}
+
+@Composable
+fun PermissionsHealthCard(
+    permissionsState: SystemPermissionsState,
+    onFixAccessibility: () -> Unit,
+    onFixAdmin: () -> Unit,
+    onFixBattery: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val customColors = LocalCustomColors.current
+
+    if (!permissionsState.hasAnyWarning) {
+        Surface(
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(12.dp),
+            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
+            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
+        ) {
+            Row(
+                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.CheckCircle,
+                    contentDescription = null,
+                    tint = MaterialTheme.colorScheme.primary,
+                    modifier = Modifier.size(18.dp)
+                )
+                Spacer(modifier = Modifier.width(10.dp))
+                Text(
+                    text = "Protection Active · Permissions & battery setup verified",
+                    style = MaterialTheme.typography.bodySmall,
+                    fontWeight = FontWeight.Medium,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+            }
+        }
+    } else {
+        Card(
+            modifier = modifier.fillMaxWidth(),
+            shape = RoundedCornerShape(16.dp),
+            colors = CardDefaults.cardColors(
+                containerColor = if (!permissionsState.isAccessibilityGranted) {
+                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
+                } else {
+                    MaterialTheme.colorScheme.surfaceContainerHigh
+                }
+            ),
+            border = BorderStroke(
+                1.5.dp,
+                if (!permissionsState.isAccessibilityGranted) MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
+                else customColors.strictAmber.copy(alpha = 0.6f)
+            )
+        ) {
+            Column(modifier = Modifier.padding(16.dp)) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Icon(
+                        imageVector = if (!permissionsState.isAccessibilityGranted) Icons.Default.Warning else Icons.Default.Security,
+                        contentDescription = null,
+                        tint = if (!permissionsState.isAccessibilityGranted) MaterialTheme.colorScheme.error else customColors.strictAmber,
+                        modifier = Modifier.size(24.dp)
+                    )
+                    Spacer(modifier = Modifier.width(10.dp))
+                    Column {
+                        Text(
+                            text = if (!permissionsState.isAccessibilityGranted) "APP BLOCKING IS INACTIVE" else "SYSTEM PERMISSIONS SETUP",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = if (!permissionsState.isAccessibilityGranted) MaterialTheme.colorScheme.error else customColors.strictAmber,
+                            letterSpacing = 1.sp
+                        )
+                        Text(
+                            text = if (!permissionsState.isAccessibilityGranted) {
+                                "FocusBlock requires Accessibility to detect opened apps"
+                            } else {
+                                "Complete setup to ensure reliable blocking and strict mode"
+                            },
+                            style = MaterialTheme.typography.bodySmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                        )
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(14.dp))
+
+                PermissionItemRow(
+                    title = "Accessibility Service",
+                    statusText = if (permissionsState.isAccessibilityGranted) "Granted · Active" else "Not Granted (Required to Block)",
+                    isGranted = permissionsState.isAccessibilityGranted,
+                    actionButtonLabel = "Enable",
+                    isCritical = true,
+                    onClickAction = onFixAccessibility
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                PermissionItemRow(
+                    title = "Device Administrator",
+                    statusText = if (permissionsState.isDeviceAdminGranted) "Active · Strict Protection Ready" else "Not Granted (Required for Strict Mode)",
+                    isGranted = permissionsState.isDeviceAdminGranted,
+                    actionButtonLabel = "Activate",
+                    isCritical = false,
+                    onClickAction = onFixAdmin
+                )
+
+                Spacer(modifier = Modifier.height(10.dp))
+
+                PermissionItemRow(
+                    title = "Battery Optimization",
+                    statusText = if (permissionsState.isBatteryOptimizationIgnored) "Unrestricted · Reliable" else "Optimized (OS may kill background blocks)",
+                    isGranted = permissionsState.isBatteryOptimizationIgnored,
+                    actionButtonLabel = "Fix",
+                    isCritical = false,
+                    onClickAction = onFixBattery
+                )
+
+                if (!permissionsState.isAccessibilityGranted) {
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Surface(
+                        shape = RoundedCornerShape(8.dp),
+                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
+                    ) {
+                        Text(
+                            text = "💡 Android 13/14 tip: If the toggle in Accessibility is greyed out, go to Phone Settings → Apps → FocusBlock → 3 dots (top-right) → tap 'Allow restricted settings'.",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = MaterialTheme.colorScheme.onSurfaceVariant,
+                            modifier = Modifier.padding(10.dp)
+                        )
+                    }
+                }
+            }
+        }
+    }
+}
+
+@Composable
+private fun PermissionItemRow(
+    title: String,
+    statusText: String,
+    isGranted: Boolean,
+    actionButtonLabel: String,
+    isCritical: Boolean,
+    onClickAction: () -> Unit
+) {
+    val customColors = LocalCustomColors.current
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clip(RoundedCornerShape(10.dp))
+            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
+            .padding(horizontal = 12.dp, vertical = 8.dp),
+        verticalAlignment = Alignment.CenterVertically,
+        horizontalArrangement = Arrangement.SpaceBetween
+    ) {
+        Column(modifier = Modifier.weight(1f)) {
+            Text(
+                text = title,
+                style = MaterialTheme.typography.bodyMedium,
+                fontWeight = FontWeight.SemiBold,
+                color = MaterialTheme.colorScheme.onSurface
+            )
+            Text(
+                text = statusText,
+                style = MaterialTheme.typography.labelSmall,
+                color = if (isGranted) Color(0xFF4CAF50)
+                else if (isCritical) MaterialTheme.colorScheme.error
+                else customColors.strictAmber
+            )
+        }
+
+        if (!isGranted) {
+            Button(
+                onClick = onClickAction,
+                shape = RoundedCornerShape(8.dp),
+                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = if (isCritical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
+                ),
+                modifier = Modifier.height(34.dp)
+            ) {
+                Text(
+                    text = actionButtonLabel,
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold
+                )
+            }
+        } else {
+            Icon(
+                imageVector = Icons.Default.CheckCircle,
+                contentDescription = "Granted",
+                tint = Color(0xFF4CAF50),
+                modifier = Modifier.size(20.dp)
+            )
+        }
+    }
 }

@@ -1,5 +1,6 @@
 package com.focusblock.ui.block
 
+import android.content.Intent
 import android.os.Bundle
 import androidx.activity.ComponentActivity
 import androidx.activity.OnBackPressedCallback
@@ -60,7 +61,7 @@ class BlockScreenActivity : ComponentActivity() {
             this,
             object : OnBackPressedCallback(enabled = true) {
                 override fun handleOnBackPressed() {
-                    moveTaskToBack(true)
+                    goToHomeScreen()
                 }
             }
         )
@@ -72,10 +73,23 @@ class BlockScreenActivity : ComponentActivity() {
                     profileName = profileName,
                     timeRemainingMs = timeRemaining,
                     isStrict = isStrict,
-                    onGoHome = { finishAndRemoveTask() }
+                    onGoHome = { goToHomeScreen() }
                 )
             }
         }
+    }
+
+    private fun goToHomeScreen() {
+        val homeIntent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        try {
+            startActivity(homeIntent)
+        } catch (e: Exception) {
+            // Gracefully ignore
+        }
+        finish()
     }
 
     companion object {

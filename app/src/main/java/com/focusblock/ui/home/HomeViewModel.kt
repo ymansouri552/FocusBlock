@@ -10,6 +10,8 @@ import com.focusblock.domain.usecase.BlockedAppsUseCase
 import com.focusblock.domain.usecase.GetProfilesUseCase
 import com.focusblock.domain.usecase.QuickBlockUseCase
 import com.focusblock.domain.usecase.StrictModeRules
+import com.focusblock.domain.usecase.SystemPermissionChecker
+import com.focusblock.domain.usecase.SystemPermissionsState
 import com.focusblock.domain.usecase.ToggleProfileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
@@ -27,7 +29,8 @@ class HomeViewModel @Inject constructor(
     private val blockedAppsUseCase: BlockedAppsUseCase,
     private val toggleProfileUseCase: ToggleProfileUseCase,
     private val quickBlockUseCase: QuickBlockUseCase,
-    private val settingsDataStore: SettingsDataStore
+    private val settingsDataStore: SettingsDataStore,
+    val permissionChecker: SystemPermissionChecker
 ) : ViewModel() {
 
     val profiles: StateFlow<List<Profile>> = getProfilesUseCase.invoke()
@@ -37,6 +40,9 @@ class HomeViewModel @Inject constructor(
 
     val strictModeState: StateFlow<StrictModeState> = settingsDataStore.strictModeState
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StrictModeState())
+
+    private val _permissionsState = MutableStateFlow(permissionChecker.checkPermissions())
+    val permissionsState: StateFlow<SystemPermissionsState> = _permissionsState.asStateFlow()
 
     private val _ui = MutableStateFlow(HomeUiState())
     val ui: StateFlow<HomeUiState> = _ui.asStateFlow()
@@ -48,6 +54,10 @@ class HomeViewModel @Inject constructor(
                 StrictModeRules.independentState = state
             }
         }
+    }
+
+    fun refreshPermissions() {
+        _permissionsState.value = permissionChecker.checkPermissions()
     }
 
     fun toggleProfile(id: Int, enabled: Boolean) {

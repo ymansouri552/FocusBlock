@@ -2,8 +2,11 @@ package com.focusblock.service.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.Context
 import android.content.Intent
 import android.content.pm.PackageManager
+import android.provider.Settings
+import android.telecom.TelecomManager
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.focusblock.domain.model.Profile
@@ -53,11 +56,8 @@ class FocusBlockAccessibilityService : AccessibilityService() {
 
         val pkg = event.packageName?.toString() ?: return
 
-        // Ignore FocusBlock's own package (prevents re-triggering from BlockScreenActivity)
-        if (pkg == packageName) return
-
-        // Ignore system apps (launchers, keyboards, settings, etc.)
-        if (isSystemApp(pkg)) return
+        // Ignore FocusBlock itself and critical phone infrastructure (launcher, keyboard, dialer, systemui)
+        if (isCriticalSystemApp(pkg)) return
 
         // Check if this package is currently blocked
         val now = Instant.now()
@@ -66,8 +66,11 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         if (blockedProfile != null) {
             val timeRemainingMs = blockedProfile.endInstant.toEpochMilli() - System.currentTimeMillis()
             if (timeRemainingMs > 0 && serviceScope.isActive) {
+                // Immediately kick back home to close/evict the blocked app
+                performGlobalAction(GLOBAL_ACTION_HOME)
+
                 val intent = Intent(this, BlockScreenActivity::class.java).apply {
-                    flags = Intent.FLAG_ACTIVITY_NEW_TASK
+                    flags = Intent.FLAG_ACTIVITY_NEW_TASK or Intent.FLAG_ACTIVITY_CLEAR_TOP or Intent.FLAG_ACTIVITY_SINGLE_TOP
                     putExtra(BlockScreenActivity.EXTRA_APP_NAME, getAppLabel(pkg))
                     putExtra(BlockScreenActivity.EXTRA_PROFILE_NAME, blockedProfile.profile.name)
                     putExtra(BlockScreenActivity.EXTRA_TIME_REMAINING_MS, timeRemainingMs)
@@ -82,15 +85,46 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         }
     }
 
-    private fun isSystemApp(pkg: String): Boolean {
-        return try {
-            val info = packageManager.getApplicationInfo(pkg, 0)
-            (info.flags and android.content.pm.ApplicationInfo.FLAG_SYSTEM) != 0 ||
-                (info.flags and android.content.pm.ApplicationInfo.FLAG_UPDATED_SYSTEM_APP) != 0
-        } catch (e: PackageManager.NameNotFoundException) {
-            // Unknown package — treat as non-system (don't block unknown packages)
-            false
+    private fun isCriticalSystemApp(pkg: String): Boolean {
+        // Never block FocusBlock itself
+        if (pkg == packageName) return true
+
+        // Never block System UI or Google Play Services framework
+        if (pkg == "com.android.systemui" || pkg == "com.google.android.gms") return true
+
+        // Never block the user's home screen launcher (prevents infinite blocking loops)
+        val defaultLauncher = getDefaultLauncherPackage()
+        if (pkg == defaultLauncher) return true
+
+        // Never block active input methods (keyboards)
+        if (isDefaultInputMethod(pkg)) return true
+
+        // Never block the emergency phone dialer
+        val defaultDialer = getDefaultDialerPackage()
+        if (pkg == defaultDialer) return true
+
+        return false
+    }
+
+    private fun getDefaultLauncherPackage(): String? {
+        val intent = Intent(Intent.ACTION_MAIN).apply {
+            addCategory(Intent.CATEGORY_HOME)
         }
+        val resolveInfo = packageManager.resolveActivity(intent, PackageManager.MATCH_DEFAULT_ONLY)
+        return resolveInfo?.activityInfo?.packageName
+    }
+
+    private fun getDefaultDialerPackage(): String? {
+        val telecomManager = getSystemService(Context.TELECOM_SERVICE) as? TelecomManager
+        return telecomManager?.defaultDialerPackage ?: "com.android.phone"
+    }
+
+    private fun isDefaultInputMethod(pkg: String): Boolean {
+        val defaultIme = Settings.Secure.getString(
+            contentResolver,
+            Settings.Secure.DEFAULT_INPUT_METHOD
+        ) ?: return false
+        return defaultIme.startsWith(pkg)
     }
 
     private fun getAppLabel(pkg: String): String {
