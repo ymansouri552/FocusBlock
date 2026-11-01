@@ -121,6 +121,7 @@ object ScheduleEngine {
     private fun activeRecurringWindow(schedule: Schedule, localNow: LocalDateTime): Pair<Instant, Instant>? {
         val startTime = schedule.startTime ?: return null
         val endTime = schedule.endTime ?: return null
+        if (startTime == endTime) return null
         val days = schedule.daysOfWeek
         if (days.isEmpty()) return null
 
@@ -135,7 +136,7 @@ object ScheduleEngine {
             if (!days.contains(calendarDay)) continue
 
             val startInstant = candidateDate.atTime(startTime).atZone(zone).toInstant()
-            val endInstant = if (!endTime.isAfter(startTime)) {
+            val endInstant = if (endTime.isBefore(startTime)) {
                 // endTime is on the *next* day (overnight window)
                 candidateDate.plusDays(1).atTime(endTime).atZone(zone).toInstant()
             } else {

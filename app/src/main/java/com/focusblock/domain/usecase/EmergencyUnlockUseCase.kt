@@ -1,5 +1,6 @@
 package com.focusblock.domain.usecase
 
+import android.os.SystemClock
 import com.focusblock.data.local.datastore.SettingsDataStore
 import java.time.Duration
 import java.time.Instant
@@ -21,7 +22,15 @@ sealed interface EmergencyUnlockStatus {
 class EmergencyUnlockUseCase @Inject constructor(
     private val settingsDataStore: SettingsDataStore
 ) {
-    suspend fun getStatus(now: Instant = Instant.now()): EmergencyUnlockStatus {
+    /**
+     * The waiting period is measured with elapsedRealtime, so moving the device clock forward
+     * does not make an emergency unlock available early.
+     */
+    suspend fun getStatus(
+        now: Instant = Instant.now(),
+        currentElapsedRealtimeMs: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L),
+        bootCount: Int = settingsDataStore.currentBootCount()
+    ): EmergencyUnlockStatus {
         val enabled = settingsDataStore.getEmergencyUnlockEnabled()
         if (!enabled) return EmergencyUnlockStatus.Disabled
 
@@ -29,26 +38,50 @@ class EmergencyUnlockUseCase @Inject constructor(
             ?: return EmergencyUnlockStatus.NotRequested
 
         val waitMinutes = settingsDataStore.getEmergencyUnlockMinutes()
+        val waitMs = Duration.ofMinutes(waitMinutes.toLong()).toMillis()
         val requestInstant = Instant.ofEpochMilli(requestEpochMs)
-        val availableAt = requestInstant.plus(Duration.ofMinutes(waitMinutes.toLong()))
+        val availableAt = requestInstant.plusMillis(waitMs)
 
-        val remainingSec = Duration.between(now, availableAt).seconds
-        return if (remainingSec > 0) {
+        val requestElapsed = settingsDataStore.getEmergencyUnlockRequestElapsedRealtimeMs()
+        val requestBootCount = settingsDataStore.getEmergencyUnlockRequestBootCount()
+
+        val elapsedSinceRequest = if (
+            requestElapsed != null &&
+            requestBootCount != null &&
+            requestBootCount == bootCount &&
+            currentElapsedRealtimeMs >= requestElapsed
+        ) {
+            currentElapsedRealtimeMs - requestElapsed
+        } else {
+            // Legacy request or reboot: fall back to wall clock.
+            Duration.between(requestInstant, now).toMillis()
+        }
+
+        val remainingMs = waitMs - elapsedSinceRequest
+        return if (remainingMs > 0L) {
             EmergencyUnlockStatus.Waiting(
                 requestTime = requestInstant,
                 availableAt = availableAt,
-                remainingSeconds = remainingSec
+                remainingSeconds = (remainingMs + 999L) / 1000L
             )
         } else {
             EmergencyUnlockStatus.Available
         }
     }
 
-    suspend fun requestUnlock(now: Instant = Instant.now()): Boolean {
+    suspend fun requestUnlock(
+        now: Instant = Instant.now(),
+        currentElapsedRealtimeMs: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L),
+        bootCount: Int = settingsDataStore.currentBootCount()
+    ): Boolean {
         val enabled = settingsDataStore.getEmergencyUnlockEnabled()
         if (!enabled) return false
 
-        settingsDataStore.setEmergencyUnlockRequestEpochMs(now.toEpochMilli())
+        settingsDataStore.setEmergencyUnlockRequest(
+            epochMs = now.toEpochMilli(),
+            elapsedRealtimeMs = currentElapsedRealtimeMs,
+            bootCount = bootCount
+        )
         return true
     }
 
@@ -56,16 +89,19 @@ class EmergencyUnlockUseCase @Inject constructor(
         settingsDataStore.setEmergencyUnlockRequestEpochMs(null)
     }
 
-    suspend fun confirmUnlock(now: Instant = Instant.now()): Boolean {
-        val status = getStatus(now)
+    suspend fun confirmUnlock(
+        now: Instant = Instant.now(),
+        currentElapsedRealtimeMs: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L),
+        bootCount: Int = settingsDataStore.currentBootCount()
+    ): Boolean {
+        val status = getStatus(now, currentElapsedRealtimeMs, bootCount)
         if (status !is EmergencyUnlockStatus.Available) {
             return false
         }
 
         // Legitimate unlock: disarm strict mode and reset request
         settingsDataStore.disarmStrictMode()
-        val disarmed = StrictModeRules.independentState.copy(isArmed = false)
-        StrictModeRules.independentState = disarmed
+        StrictModeRules.independentState = StrictModeRules.independentState.copy(isArmed = false)
         settingsDataStore.setEmergencyUnlockRequestEpochMs(null)
         return true
     }

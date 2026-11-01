@@ -13,6 +13,7 @@ import com.focusblock.domain.usecase.DeleteProfileUseCase
 import com.focusblock.domain.usecase.GetInstalledAppsUseCase
 import com.focusblock.domain.usecase.SaveProfileUseCase
 import com.focusblock.domain.usecase.StrictModeRules
+import com.focusblock.domain.usecase.TrustedClock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -27,7 +28,8 @@ class ProfileEditorViewModel @Inject constructor(
     private val saveProfileUseCase: SaveProfileUseCase,
     private val deleteProfileUseCase: DeleteProfileUseCase,
     private val profileRepository: ProfileRepository,
-    private val getInstalledAppsUseCase: GetInstalledAppsUseCase
+    private val getInstalledAppsUseCase: GetInstalledAppsUseCase,
+    private val trustedClock: TrustedClock
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(ProfileEditorUiState())
@@ -183,7 +185,7 @@ class ProfileEditorViewModel @Inject constructor(
                 return@launch
             }
             profile = profile.copy(name = trimmedName)
-            val check = canSave()
+            val check = saveProfileUseCase.canSave(original, profile, trustedClock.now())
             if (!check.allowed) {
                 _ui.value = _ui.value.copy(saving = false, error = check.reason)
                 return@launch
@@ -203,7 +205,7 @@ class ProfileEditorViewModel @Inject constructor(
     fun delete(onDeleted: () -> Unit = {}) {
         viewModelScope.launch {
             _ui.value = _ui.value.copy(saving = true, error = null)
-            val canDelete = StrictModeRules.canDelete(original, Instant.now())
+            val canDelete = StrictModeRules.canDelete(original, trustedClock.now())
             if (!canDelete.allowed) {
                 _ui.value = _ui.value.copy(saving = false, error = canDelete.reason)
                 return@launch

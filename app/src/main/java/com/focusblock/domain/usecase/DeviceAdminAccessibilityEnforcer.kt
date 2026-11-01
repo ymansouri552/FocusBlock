@@ -11,7 +11,6 @@ import androidx.core.content.ContextCompat
 import com.focusblock.domain.model.Profile
 import com.focusblock.service.admin.FocusBlockDeviceAdminReceiver
 import com.focusblock.service.accessibility.FocusBlockAccessibilityService
-import kotlinx.coroutines.runBlocking
 import javax.inject.Inject
 import javax.inject.Singleton
 
@@ -68,10 +67,8 @@ class DeviceAdminAccessibilityEnforcer @Inject constructor(
         }
     }
 
-    override fun requestEmergencyUnlock(): Boolean {
-        return runBlocking {
-            emergencyUnlockUseCase.requestUnlock()
-        }
+    override suspend fun requestEmergencyUnlock(): Boolean {
+        return emergencyUnlockUseCase.requestUnlock()
     }
 
     fun requestUninstallBlock() {

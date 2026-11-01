@@ -5,10 +5,9 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
-import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material3.Button
@@ -23,6 +22,7 @@ import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.remember
@@ -30,36 +30,59 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.unit.dp
+import androidx.lifecycle.Lifecycle
+import androidx.lifecycle.LifecycleEventObserver
+import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.focusblock.R
+import com.focusblock.domain.usecase.SystemPermissionsState
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun OnboardingScreen(onComplete: () -> Unit) {
+fun OnboardingScreen(
+    permissionsState: SystemPermissionsState,
+    onRefreshPermissions: () -> Unit,
+    onFixAccessibility: () -> Unit,
+    onFixDeviceAdmin: () -> Unit,
+    onComplete: () -> Unit
+) {
     var page by remember { mutableIntStateOf(0) }
+
+    // Refresh permission status when returning from system settings.
+    val lifecycleOwner = LocalLifecycleOwner.current
+    DisposableEffect(lifecycleOwner) {
+        val observer = LifecycleEventObserver { _, event ->
+            if (event == Lifecycle.Event.ON_RESUME) {
+                onRefreshPermissions()
+            }
+        }
+        lifecycleOwner.lifecycle.addObserver(observer)
+        onDispose {
+            lifecycleOwner.lifecycle.removeObserver(observer)
+        }
+    }
+
     val pages = listOf(
         OnboardingPage(
             titleRes = R.string.onboarding_welcome_title,
-            descriptionRes = R.string.onboarding_welcome_description,
-            permissionRes = null,
-            statusGrantedRes = null
+            descriptionRes = R.string.onboarding_welcome_description
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_accessibility,
             descriptionRes = R.string.perm_accessibility_summary,
             permissionRes = R.string.perm_accessibility,
-            statusGrantedRes = R.string.onboarding_permission_not_granted
+            granted = permissionsState.isAccessibilityGranted,
+            onFix = onFixAccessibility
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_device_admin,
             descriptionRes = R.string.perm_device_admin_summary,
             permissionRes = R.string.perm_device_admin,
-            statusGrantedRes = R.string.onboarding_permission_not_granted
+            granted = permissionsState.isDeviceAdminGranted,
+            onFix = onFixDeviceAdmin
         ),
         OnboardingPage(
             titleRes = R.string.onboarding_local_data_title,
-            descriptionRes = R.string.onboarding_local_data_description,
-            permissionRes = null,
-            statusGrantedRes = null
+            descriptionRes = R.string.onboarding_local_data_description
         )
     )
 
@@ -116,10 +139,20 @@ fun OnboardingScreen(onComplete: () -> Unit) {
                         )
                         Spacer(modifier = Modifier.height(4.dp))
                         Text(
-                            text = stringResource(id = R.string.onboarding_permission_not_granted),
+                            text = stringResource(
+                                id = if (current.granted) R.string.onboarding_permission_granted
+                                else R.string.onboarding_permission_not_granted
+                            ),
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            color = if (current.granted) MaterialTheme.colorScheme.primary
+                            else MaterialTheme.colorScheme.onSurfaceVariant
                         )
+                        if (!current.granted && current.onFix != null) {
+                            Spacer(modifier = Modifier.height(4.dp))
+                            TextButton(onClick = current.onFix) {
+                                Text(text = stringResource(id = R.string.onboarding_fix))
+                            }
+                        }
                     }
                 }
             }
@@ -153,5 +186,6 @@ private data class OnboardingPage(
     val titleRes: Int,
     val descriptionRes: Int,
     val permissionRes: Int? = null,
-    val statusGrantedRes: Int? = null
+    val granted: Boolean = false,
+    val onFix: (() -> Unit)? = null
 )

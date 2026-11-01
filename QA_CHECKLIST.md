@@ -29,16 +29,15 @@
 - [ ] Blocked app foreground -> block screen shown, sent home
 - [ ] Block screen shows app name, profile name, time remaining
 - [ ] Back button does not return to blocked app
-- [ ] "Go home" button returns to home
-- [ ] Persistent notification shows active blocks
+- [ ] Block screen countdown ticks accurately
+- [ ] Block screen return to home button works
 
 ## 5. Strict Mode enforcement
 - [ ] Device Admin enable/disable flow works
 - [ ] `onDisableRequested` warning shown
 - [ ] While strict active: Settings app / admin settings / app info blocked (Targeted or Aggressive)
 - [ ] Clock change backward does not shorten strict block
-- [ ] Reboot -> block state restored
-- [ ] Debug flag shortens strict durations and allows immediate unlock
+- [ ] Reboot -> block state restored cleanly and accurately
 
 ## 6. Onboarding / permissions
 - [ ] Permission wizard shows status for each permission

@@ -4,6 +4,7 @@ import android.content.Context
 import androidx.test.core.app.ApplicationProvider
 import com.focusblock.data.local.datastore.SettingsDataStore
 import com.focusblock.domain.model.Profile
+import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.model.StrictTermType
 import com.focusblock.domain.repository.ProfileRepository
 import com.focusblock.domain.usecase.BlockedAppsUseCase
@@ -11,8 +12,10 @@ import com.focusblock.domain.usecase.EmergencyUnlockUseCase
 import com.focusblock.domain.usecase.GetProfilesUseCase
 import com.focusblock.domain.usecase.QuickBlockUseCase
 import com.focusblock.domain.usecase.SaveProfileUseCase
+import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.SystemPermissionChecker
 import com.focusblock.domain.usecase.ToggleProfileUseCase
+import com.focusblock.domain.usecase.TrustedClock
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.ExperimentalCoroutinesApi
 import kotlinx.coroutines.flow.Flow
@@ -21,6 +24,7 @@ import kotlinx.coroutines.test.StandardTestDispatcher
 import kotlinx.coroutines.test.advanceUntilIdle
 import kotlinx.coroutines.test.resetMain
 import kotlinx.coroutines.test.runTest
+import kotlinx.coroutines.runBlocking
 import kotlinx.coroutines.test.setMain
 import org.junit.After
 import org.junit.Assert.assertEquals
@@ -56,15 +60,19 @@ class HomeViewModelTest {
     }
 
     @Before
-    fun setUp() {
+    fun setUp() = runBlocking {
         Dispatchers.setMain(testDispatcher)
         context = ApplicationProvider.getApplicationContext()
         settingsDataStore = SettingsDataStore(context)
+        settingsDataStore.disarmStrictMode()
+        settingsDataStore.clearClockAnchor()
+        StrictModeRules.independentState = StrictModeState()
         emergencyUnlockUseCase = EmergencyUnlockUseCase(settingsDataStore)
+        val trustedClock = TrustedClock(context, settingsDataStore)
 
         val getProfilesUseCase = GetProfilesUseCase(fakeRepo)
-        val blockedAppsUseCase = BlockedAppsUseCase(fakeRepo)
-        val toggleProfileUseCase = ToggleProfileUseCase(fakeRepo)
+        val blockedAppsUseCase = BlockedAppsUseCase(fakeRepo, trustedClock)
+        val toggleProfileUseCase = ToggleProfileUseCase(fakeRepo, trustedClock)
         val quickBlockUseCase = QuickBlockUseCase(fakeRepo)
         val permissionChecker = SystemPermissionChecker(context)
 
@@ -75,6 +83,7 @@ class HomeViewModelTest {
             quickBlockUseCase = quickBlockUseCase,
             settingsDataStore = settingsDataStore,
             emergencyUnlockUseCase = emergencyUnlockUseCase,
+            trustedClock = trustedClock,
             permissionChecker = permissionChecker
         )
     }
@@ -137,7 +146,11 @@ class HomeViewModelTest {
     fun disarmStrictMode_whenExpiredTimed_disarmsSuccessfully() = runTest(testDispatcher) {
         val pastEnd = Instant.now().minus(Duration.ofMinutes(5))
         settingsDataStore.armStrictMode(StrictTermType.HOURS_4, customEndInstant = pastEnd)
-        testScheduler.runCurrent()
+        for (i in 1..25) {
+            testScheduler.runCurrent()
+            if (settingsDataStore.getStrictModeState().endInstant == pastEnd) break
+            Thread.sleep(30)
+        }
 
         viewModel.disarmStrictMode()
 

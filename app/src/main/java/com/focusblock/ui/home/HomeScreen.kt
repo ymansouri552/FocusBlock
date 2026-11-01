@@ -117,8 +117,8 @@ fun HomeScreen(
     var now by remember { mutableStateOf(Instant.now()) }
     LaunchedEffect(Unit) {
         while (true) {
+            now = viewModel.now()
             delay(1000)
-            now = Instant.now()
         }
     }
 

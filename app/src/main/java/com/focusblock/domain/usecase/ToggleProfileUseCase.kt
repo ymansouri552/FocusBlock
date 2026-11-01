@@ -1,11 +1,13 @@
 package com.focusblock.domain.usecase
 
-import com.focusblock.domain.model.Profile
 import com.focusblock.domain.repository.ProfileRepository
 import kotlinx.coroutines.flow.first
 import javax.inject.Inject
 
-class ToggleProfileUseCase @Inject constructor(private val repository: ProfileRepository) {
+class ToggleProfileUseCase @Inject constructor(
+    private val repository: ProfileRepository,
+    private val trustedClock: TrustedClock
+) {
     
     /** Result of toggle operation */
     sealed interface ToggleResult {
@@ -17,9 +19,10 @@ class ToggleProfileUseCase @Inject constructor(private val repository: ProfileRe
         // Get the profile to check strict mode rules
         val profile = repository.getProfileById(id).first() ?: return ToggleResult.Failure("Profile not found")
         
-        // If trying to disable a profile, check strict mode rules
+        // If trying to disable a profile, check strict mode rules against the trusted clock so
+        // rolling the device clock forward cannot make an active strict session look expired.
         if (!enabled) {
-            val canDeactivate = StrictModeRules.canDeactivate(profile)
+            val canDeactivate = StrictModeRules.canDeactivate(profile, trustedClock.now())
             if (!canDeactivate.allowed) {
                 return ToggleResult.Failure(canDeactivate.reason ?: "Strict profile cannot be deactivated")
             }

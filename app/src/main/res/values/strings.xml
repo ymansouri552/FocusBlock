@@ -125,6 +125,12 @@
 
     <!-- Block screen -->
     <string name="block_title">Blocked</string>
+    <string name="block_take_a_breath">Take a breath</string>
+    <string name="block_app_is_blocked">This App is Blocked</string>
+    <string name="block_time_remaining">TIME REMAINING</string>
+    <string name="block_strict_enforced">Strict Mode Enforced · Bypassing is locked until the session finishes.</string>
+    <string name="block_return_home">Return to Home</string>
+    <string name="block_schedule_same_time_error">Start time and end time cannot be the same</string>
     <string name="block_unknown_app">Unknown app</string>
     <string name="block_unknown_profile">Unknown profile</string>
     <string name="block_app_label">App: %s</string>
@@ -185,6 +191,9 @@
     <string name="close">Close</string>
 
     <!-- Play disclosure -->
+    <string name="play_disclosure_screen_title">Important permissions</string>
+    <string name="play_disclosure_heading">FocusBlock Accessibility &amp; Device Admin Disclosure</string>
+    <string name="play_disclosure_consent">I understand and consent</string>
     <string name="play_disclosure_body">FocusBlock requests Accessibility Service and Device Administrator permissions. Accessibility is used only to detect when a blocked app is brought to the foreground so the block screen can be shown. No screen content is collected, stored, or transmitted. Device Administrator is used only to prevent uninstallation of FocusBlock while a Strict Mode block is active. You can revoke either permission at any time in Settings.</string>
     <string name="play_disclosure_accessibility">I consent to the Accessibility Service being used to detect blocked apps and enforce blocks locally on this device.</string>
     <string name="play_disclosure_device_admin">I consent to Device Administrator being used to prevent uninstallation while Strict Mode is active.</string>

@@ -10,5 +10,6 @@ class BlockLogRepositoryImpl(private val dao: BlockLogDao) : BlockLogRepository 
     override fun getLogsForDay(day: Long): Flow<List<BlockLog>> = dao.getLogsForDay(day)
     override fun getLogsForPackage(packageName: String): Flow<List<BlockLog>> = dao.getLogsForPackage(packageName)
     override fun getAllLogs(): Flow<List<BlockLog>> = dao.getAllLogs()
+    override fun deleteLogsOlderThan(thresholdMs: Long): Int = dao.deleteLogsOlderThan(thresholdMs)
     override fun clearAllLogs(): Int = dao.clearAllLogs()
 }

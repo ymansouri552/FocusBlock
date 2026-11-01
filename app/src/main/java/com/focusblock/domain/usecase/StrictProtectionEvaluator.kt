@@ -70,7 +70,9 @@ class StrictProtectionEvaluator @Inject constructor() {
     }
 
     fun isBrowserApp(pkg: String): Boolean {
-        return BROWSER_PACKAGES.contains(pkg) || pkg.contains("browser")
+        return BROWSER_PACKAGES.contains(pkg) ||
+            pkg.endsWith(".browser") ||
+            pkg.split('.').any { it == "browser" }
     }
 
     fun shouldBlockTamperAttempt(

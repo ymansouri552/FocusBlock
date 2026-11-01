@@ -22,6 +22,9 @@ interface BlockLogDao {
     @Query("SELECT * FROM block_log ORDER BY timestamp DESC")
     fun getAllLogs(): Flow<List<BlockLog>>
 
+    @Query("DELETE FROM block_log WHERE timestamp < :thresholdMs")
+    fun deleteLogsOlderThan(thresholdMs: Long): Int
+
     @Query("DELETE FROM block_log")
     fun clearAllLogs(): Int
 }

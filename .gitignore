@@ -14,24 +14,21 @@
 #  Gradle
 # -------------------------------------------------------
 .gradle/
-.idea/caches/
-.idea/libraries/
-.idea/navEditor.xml
-.idea/assetWizardSettings.xml
-.idea/androidTestMockDeploymentTarget.xml
-.idea/modules.xml
-.idea/workspace.xml
 build/
+**/build/
+**/out/
+**/dist/
 
 # -------------------------------------------------------
 #  Local machine-specific configuration
 # -------------------------------------------------------
 local.properties
+!gradle.properties
 
 # -------------------------------------------------------
 #  IDE (IntelliJ / Android Studio)
 # -------------------------------------------------------
-.idea
+.idea/
 *.iml
 *.ipr
 *.iws
@@ -64,7 +61,6 @@ Desktop.ini
 # -------------------------------------------------------
 *.jks
 *.keystore
-*.properties
 google-services.json
 
 # -------------------------------------------------------
@@ -73,19 +69,8 @@ google-services.json
 **/BuildConfig.java
 **/Manifest.java
 app/autogen/
-app/androidTest/
 app/compose_compiler/
 app/generated/
-**/build/
-**/out/
-**/dist/
-
-# -------------------------------------------------------
-#  ProGuard / R8
-# -------------------------------------------------------
-proguard-rules.pro
-proguard-rules.txt
-*.pro
 
 # -------------------------------------------------------
 #  Crashlytics / Firebase
@@ -102,31 +87,6 @@ crashlytics-build.properties
 **/*.o
 **/*.dll
 **/*.dylib
-
-# -------------------------------------------------------
-#  Test / coverage
-# -------------------------------------------------------
-**/build/test-results/
-**/build/reports/
-**/build/jacoco/
-
-# -------------------------------------------------------
-#  JetBrains / other tools
-# -------------------------------------------------------
-*.ijm
-*.ijp
-**/.swiftpm/
-**/.vagrant/
-
-# -------------------------------------------------------
-#  Virtual machines / containers
-# -------------------------------------------------------
-.vagrant/
-*.box
-*.qcow2
-*.vmdk
-*.vdi
-*.ovf
 
 # -------------------------------------------------------
 #  Kotlin metadata

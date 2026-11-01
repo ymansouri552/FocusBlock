@@ -132,7 +132,7 @@ fun ScheduleEditorDialog(
     }
 
     val isOvernight = remember(startTime, endTime) {
-        !endTime.isAfter(startTime)
+        endTime.isBefore(startTime)
     }
 
     fun openTimePicker(initial: LocalTime, onSelected: (LocalTime) -> Unit) {
@@ -505,6 +505,10 @@ fun ScheduleEditorDialog(
                         ScheduleType.RECURRING -> {
                             if (daysOfWeek.isEmpty()) {
                                 errorMessage = "Please select at least one day"
+                                return@Button
+                            }
+                            if (startTime == endTime) {
+                                errorMessage = context.getString(R.string.block_schedule_same_time_error)
                                 return@Button
                             }
                             val schedule = Schedule(

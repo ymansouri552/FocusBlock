@@ -21,12 +21,14 @@ import com.focusblock.domain.repository.BlockLogRepository
 import com.focusblock.domain.repository.ProfileRepository
 import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.StrictProtectionEvaluator
+import com.focusblock.domain.usecase.TrustedClock
 import com.focusblock.ui.block.BlockScreenActivity
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.CoroutineScope
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.SupervisorJob
 import kotlinx.coroutines.cancel
+import kotlinx.coroutines.delay
 import kotlinx.coroutines.flow.collect
 import kotlinx.coroutines.isActive
 import kotlinx.coroutines.launch
@@ -48,7 +50,14 @@ class FocusBlockAccessibilityService : AccessibilityService() {
     @Inject
     lateinit var blockLogRepository: BlockLogRepository
 
+    @Inject
+    lateinit var trustedClock: TrustedClock
+
     private val serviceScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
+
+    /** Tamper-resistant "now", refreshed off the elapsedRealtime anchor. */
+    @Volatile
+    private var trustedNow: Instant = Instant.now()
 
     @Volatile
     private var cachedProfiles: List<Profile> = emptyList()
@@ -90,6 +99,15 @@ class FocusBlockAccessibilityService : AccessibilityService() {
                 cachedStrictLevel = runCatching { StrictLevel.valueOf(levelStr) }.getOrDefault(StrictLevel.TARGETED)
             }
         }
+
+        // Keep a tamper-resistant clock for all schedule/strict decisions.
+        serviceScope.launch {
+            trustedClock.initialize()
+            while (isActive) {
+                trustedNow = trustedClock.now()
+                delay(1_000)
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -100,7 +118,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         // Ignore FocusBlock itself and critical phone infrastructure (launcher, keyboard, dialer, systemui)
         if (isCriticalSystemApp(pkg)) return
 
-        val now = Instant.now()
+        val now = trustedNow
         val activeProfiles = ScheduleEngine.activeProfiles(cachedProfiles, now)
 
         // 1. Strict Mode Tamper Evaluation (Targeted vs Aggressive Settings / Installer protection)
@@ -132,7 +150,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         // 2. Regular blocked app check
         val blockedProfile = activeProfiles.firstOrNull { it.profile.blockedApps.contains(pkg) }
         if (blockedProfile != null) {
-            val timeRemainingMs = blockedProfile.endInstant.toEpochMilli() - System.currentTimeMillis()
+            val timeRemainingMs = blockedProfile.endInstant.toEpochMilli() - now.toEpochMilli()
             if (timeRemainingMs > 0 && serviceScope.isActive) {
                 val appLabel = getAppLabel(pkg)
                 logBlockEvent(pkg = pkg, appName = appLabel, profileId = blockedProfile.profile.id)
@@ -273,10 +291,6 @@ class FocusBlockAccessibilityService : AccessibilityService() {
 
     override fun onInterrupt() {
         // Service interrupted
-    }
-
-    override fun onKeyEvent(event: KeyEvent): Boolean {
-        return super.onKeyEvent(event)
     }
 
     override fun onDestroy() {

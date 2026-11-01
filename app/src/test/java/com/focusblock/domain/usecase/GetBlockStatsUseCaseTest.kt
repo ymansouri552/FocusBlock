@@ -34,6 +34,12 @@ class GetBlockStatsUseCaseTest {
         override fun getLogsForDay(day: Long): Flow<List<BlockLog>> = _flow.asStateFlow()
         override fun getLogsForPackage(packageName: String): Flow<List<BlockLog>> = _flow.asStateFlow()
         override fun getAllLogs(): Flow<List<BlockLog>> = _flow.asStateFlow()
+        override fun deleteLogsOlderThan(thresholdMs: Long): Int {
+            val count = logs.count { it.timestamp < thresholdMs }
+            logs.removeAll { it.timestamp < thresholdMs }
+            _flow.value = ArrayList(logs)
+            return count
+        }
         override fun clearAllLogs(): Int {
             val count = logs.size
             logs.clear()

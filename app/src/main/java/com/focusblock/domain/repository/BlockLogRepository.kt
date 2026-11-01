@@ -8,5 +8,6 @@ interface BlockLogRepository {
     fun getLogsForDay(day: Long): Flow<List<BlockLog>>
     fun getLogsForPackage(packageName: String): Flow<List<BlockLog>>
     fun getAllLogs(): Flow<List<BlockLog>>
+    fun deleteLogsOlderThan(thresholdMs: Long): Int
     fun clearAllLogs(): Int
 }

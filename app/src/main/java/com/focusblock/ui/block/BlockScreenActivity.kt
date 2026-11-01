@@ -34,6 +34,12 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import kotlinx.coroutines.delay
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Brush
@@ -109,6 +115,17 @@ fun BlockScreen(
     onGoHome: () -> Unit
 ) {
     val customColors = LocalCustomColors.current
+    var remainingMs by remember(timeRemainingMs) { mutableLongStateOf(timeRemainingMs) }
+
+    LaunchedEffect(timeRemainingMs) {
+        val startWall = System.currentTimeMillis()
+        val initialRemaining = timeRemainingMs
+        while (remainingMs > 0) {
+            delay(500)
+            val elapsed = System.currentTimeMillis() - startWall
+            remainingMs = (initialRemaining - elapsed).coerceAtLeast(0L)
+        }
+    }
 
     val bgGradient = Brush.verticalGradient(
         colors = listOf(
@@ -155,7 +172,7 @@ fun BlockScreen(
             Spacer(modifier = Modifier.height(24.dp))
 
             Text(
-                text = "Take a breath",
+                text = stringResource(id = R.string.block_take_a_breath),
                 style = MaterialTheme.typography.labelLarge,
                 color = Color.White.copy(alpha = 0.6f),
                 letterSpacing = 2.sp,
@@ -165,7 +182,7 @@ fun BlockScreen(
             Spacer(modifier = Modifier.height(6.dp))
 
             Text(
-                text = "This App is Blocked",
+                text = stringResource(id = R.string.block_app_is_blocked),
                 style = MaterialTheme.typography.headlineLarge,
                 fontWeight = FontWeight.Bold,
                 color = Color.White
@@ -221,7 +238,7 @@ fun BlockScreen(
                     horizontalAlignment = Alignment.CenterHorizontally
                 ) {
                     Text(
-                        text = "TIME REMAINING",
+                        text = stringResource(id = R.string.block_time_remaining),
                         style = MaterialTheme.typography.labelSmall,
                         color = Color.White.copy(alpha = 0.6f),
                         letterSpacing = 1.5.sp,
@@ -229,7 +246,7 @@ fun BlockScreen(
                     )
                     Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = formatTime(timeRemainingMs),
+                        text = formatTime(remainingMs),
                         style = MaterialTheme.typography.displaySmall.copy(
                             fontFamily = FontFamily.Monospace,
                             fontWeight = FontWeight.Bold,
@@ -261,7 +278,7 @@ fun BlockScreen(
                         )
                         Spacer(modifier = Modifier.width(10.dp))
                         Text(
-                            text = "Strict Mode Enforced · Bypassing is locked until the session finishes.",
+                            text = stringResource(id = R.string.block_strict_enforced),
                             style = MaterialTheme.typography.bodySmall,
                             color = customColors.strictOnContainer
                         )
@@ -283,7 +300,7 @@ fun BlockScreen(
             ) {
                 Icon(Icons.Default.Home, contentDescription = null, modifier = Modifier.size(20.dp))
                 Spacer(modifier = Modifier.width(8.dp))
-                Text("Return to Home", fontWeight = FontWeight.Bold, fontSize = 16.sp)
+                Text(stringResource(id = R.string.block_return_home), fontWeight = FontWeight.Bold, fontSize = 16.sp)
             }
         }
     }

@@ -24,5 +24,5 @@ interface StrictEnforcer {
     fun onStrictProfileStateChanged(profile: Profile, isActive: Boolean)
 
     /** Emergency unlock requested; enforcer may enforce a waiting period. */
-    fun requestEmergencyUnlock(): Boolean
+    suspend fun requestEmergencyUnlock(): Boolean
 }

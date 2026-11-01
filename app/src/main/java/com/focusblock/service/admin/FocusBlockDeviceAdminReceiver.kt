@@ -4,7 +4,13 @@ import android.app.admin.DeviceAdminReceiver
 import android.content.Context
 import android.content.Intent
 import android.widget.Toast
+import com.focusblock.data.local.datastore.SettingsDataStore
+import com.focusblock.di.FocusBlockApplication
+import com.focusblock.domain.model.ScheduleEngine
 import com.focusblock.domain.usecase.StrictModeRules
+import kotlinx.coroutines.flow.first
+import kotlinx.coroutines.runBlocking
+import java.time.Instant
 
 class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
 
@@ -19,8 +25,21 @@ class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
     }
 
     override fun onDisableRequested(context: Context, intent: Intent): CharSequence {
-        val isIndependentArmed = StrictModeRules.independentState.isEffectivelyActive()
-        return if (isIndependentArmed) {
+        val isIndependentArmed = runCatching {
+            runBlocking { SettingsDataStore(context).getStrictModeState().isEffectivelyActive() }
+        }.getOrDefault(StrictModeRules.independentState.isEffectivelyActive())
+
+        val isStrictProfileActive = runCatching {
+            val app = context.applicationContext as? FocusBlockApplication
+            if (app != null) {
+                runBlocking {
+                    val profiles = app.database.profileDao().getAllProfiles().first()
+                    profiles.any { it.strict && it.enabled && ScheduleEngine.isActive(it, Instant.now()) }
+                }
+            } else false
+        }.getOrDefault(false)
+
+        return if (isIndependentArmed || isStrictProfileActive) {
             "Strict Mode is currently ARMED under active terms! Disabling Device Administration is prohibited until terms expire."
         } else {
             "Disabling device administration will allow FocusBlock to be uninstalled and strict blocks to be bypassed. Keep it enabled while strict mode or any strict profile is active."

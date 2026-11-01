@@ -2,9 +2,11 @@ package com.focusblock.data.local.datastore
 
 import android.content.Context
 import android.os.SystemClock
+import android.provider.Settings
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
+import androidx.datastore.preferences.core.intPreferencesKey
 import androidx.datastore.preferences.core.longPreferencesKey
 import androidx.datastore.preferences.core.stringPreferencesKey
 import androidx.datastore.preferences.preferencesDataStore
@@ -30,9 +32,15 @@ object SettingsKeys {
     val emergencyUnlockMinutes = stringPreferencesKey("emergency_unlock_minutes")
     val emergencyUnlockEnabled = stringPreferencesKey("emergency_unlock_enabled")
     val emergencyUnlockRequestEpochMs = longPreferencesKey("emergency_unlock_request_epoch_ms")
+    val emergencyUnlockRequestElapsedRealtimeMs = longPreferencesKey("emergency_unlock_request_elapsed_realtime_ms")
+    val emergencyUnlockRequestBootCount = intPreferencesKey("emergency_unlock_request_boot_count")
     val theme = stringPreferencesKey("theme")
     val language = stringPreferencesKey("language")
     val debugShortenStrict = stringPreferencesKey("debug_shorten_strict")
+
+    // Onboarding / Play compliance
+    val onboardingCompleted = booleanPreferencesKey("onboarding_completed")
+    val playDisclosureAccepted = booleanPreferencesKey("play_disclosure_accepted")
 
     // Independent Strict Mode Keys
     val independentStrictArmed = booleanPreferencesKey("independent_strict_armed")
@@ -41,6 +49,13 @@ object SettingsKeys {
     val independentStrictStartedEpochMs = longPreferencesKey("independent_strict_started_epoch_ms")
     val independentStrictStartedElapsedRealtimeMs = longPreferencesKey("independent_strict_started_elapsed_realtime_ms")
     val independentStrictExpectedDurationMs = longPreferencesKey("independent_strict_expected_duration_ms")
+    val independentStrictLastObservedElapsedMs = longPreferencesKey("independent_strict_last_observed_elapsed_ms")
+    val independentStrictBootCount = intPreferencesKey("independent_strict_boot_count")
+
+    // Trusted clock anchor (elapsedRealtime based)
+    val clockAnchorWallEpochMs = longPreferencesKey("clock_anchor_wall_epoch_ms")
+    val clockAnchorElapsedRealtimeMs = longPreferencesKey("clock_anchor_elapsed_realtime_ms")
+    val clockAnchorBootCount = intPreferencesKey("clock_anchor_boot_count")
 }
 
 data class StrictElapsedInfo(
@@ -48,7 +63,15 @@ data class StrictElapsedInfo(
     val startedAt: Instant?,
     val endInstant: Instant?,
     val startedElapsedRealtimeMs: Long?,
-    val expectedDurationMs: Long?
+    val expectedDurationMs: Long?,
+    val lastObservedElapsedSinceStartMs: Long? = null,
+    val bootCount: Int? = null
+)
+
+data class ClockAnchor(
+    val wallEpochMs: Long,
+    val elapsedRealtimeMs: Long,
+    val bootCount: Int
 )
 
 enum class StrictLevel(val value: String) {
@@ -57,8 +80,13 @@ enum class StrictLevel(val value: String) {
 }
 
 open class SettingsDataStore(context: Context) {
-    private val dataStore = context.focusBlockDataStore
+    private val appContext = context.applicationContext
+    private val dataStore = appContext.focusBlockDataStore
     val settings: Flow<Preferences> = dataStore.data
+
+    fun currentBootCount(): Int = runCatching {
+        Settings.Global.getInt(appContext.contentResolver, Settings.Global.BOOT_COUNT)
+    }.getOrDefault(-1)
 
     open val strictModeState: Flow<StrictModeState> = dataStore.data.map { prefs ->
         val armed = prefs[SettingsKeys.independentStrictArmed] ?: false
@@ -94,13 +122,17 @@ open class SettingsDataStore(context: Context) {
         val startedAt = if (startedEpochMs != null && startedEpochMs > 0) Instant.ofEpochMilli(startedEpochMs) else null
         val startedElapsed = prefs[SettingsKeys.independentStrictStartedElapsedRealtimeMs]
         val expectedDuration = prefs[SettingsKeys.independentStrictExpectedDurationMs]
+        val lastObserved = prefs[SettingsKeys.independentStrictLastObservedElapsedMs]
+        val bootCount = prefs[SettingsKeys.independentStrictBootCount]
 
         return StrictElapsedInfo(
             isArmed = armed,
             startedAt = startedAt,
             endInstant = endInstant,
             startedElapsedRealtimeMs = startedElapsed,
-            expectedDurationMs = expectedDuration
+            expectedDurationMs = expectedDuration,
+            lastObservedElapsedSinceStartMs = lastObserved,
+            bootCount = bootCount
         )
     }
 
@@ -114,7 +146,8 @@ open class SettingsDataStore(context: Context) {
         termType: StrictTermType,
         customEndInstant: Instant? = null,
         now: Instant = Instant.now(),
-        elapsedRealtimeMs: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L)
+        elapsedRealtimeMs: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L),
+        bootCount: Int = currentBootCount()
     ) {
         val calculatedEnd: Instant? = when {
             customEndInstant != null -> customEndInstant
@@ -139,6 +172,8 @@ open class SettingsDataStore(context: Context) {
             }
             prefs[SettingsKeys.independentStrictStartedEpochMs] = now.toEpochMilli()
             prefs[SettingsKeys.independentStrictStartedElapsedRealtimeMs] = elapsedRealtimeMs
+            prefs[SettingsKeys.independentStrictLastObservedElapsedMs] = 0L
+            prefs[SettingsKeys.independentStrictBootCount] = bootCount
         }
     }
 
@@ -149,6 +184,72 @@ open class SettingsDataStore(context: Context) {
             prefs.remove(SettingsKeys.independentStrictStartedEpochMs)
             prefs.remove(SettingsKeys.independentStrictStartedElapsedRealtimeMs)
             prefs.remove(SettingsKeys.independentStrictExpectedDurationMs)
+            prefs.remove(SettingsKeys.independentStrictLastObservedElapsedMs)
+            prefs.remove(SettingsKeys.independentStrictBootCount)
+            prefs.remove(SettingsKeys.clockAnchorWallEpochMs)
+            prefs.remove(SettingsKeys.clockAnchorElapsedRealtimeMs)
+            prefs.remove(SettingsKeys.clockAnchorBootCount)
+        }
+    }
+
+    /**
+     * Records how much real (elapsedRealtime) time has passed since the strict term started.
+     * Persisted periodically so a reboot can freeze progress instead of trusting a possibly
+     * rolled-back wall clock.
+     */
+    open suspend fun recordStrictElapsedProgress(
+        currentElapsedRealtimeMs: Long = runCatching { SystemClock.elapsedRealtime() }.getOrDefault(0L),
+        bootCount: Int = currentBootCount()
+    ) {
+        dataStore.edit { prefs ->
+            if (prefs[SettingsKeys.independentStrictArmed] != true) return@edit
+            val started = prefs[SettingsKeys.independentStrictStartedElapsedRealtimeMs] ?: return@edit
+            val storedBootCount = prefs[SettingsKeys.independentStrictBootCount]
+            if (storedBootCount != null && storedBootCount != bootCount) return@edit
+            prefs[SettingsKeys.independentStrictLastObservedElapsedMs] =
+                (currentElapsedRealtimeMs - started).coerceAtLeast(0L)
+        }
+    }
+
+    /**
+     * Re-anchors the elapsed-based strict clock after a reboot so that time spent powered off
+     * is not silently consumed (which would let a wall-clock roll end the term early).
+     */
+    open suspend fun reanchorStrictElapsed(
+        startedElapsedRealtimeMs: Long,
+        bootCount: Int,
+        newEndInstant: Instant,
+        lastObservedElapsedSinceStartMs: Long
+    ) {
+        dataStore.edit { prefs ->
+            prefs[SettingsKeys.independentStrictStartedElapsedRealtimeMs] = startedElapsedRealtimeMs
+            prefs[SettingsKeys.independentStrictBootCount] = bootCount
+            prefs[SettingsKeys.independentStrictEndEpochMs] = newEndInstant.toEpochMilli()
+            prefs[SettingsKeys.independentStrictLastObservedElapsedMs] = lastObservedElapsedSinceStartMs
+        }
+    }
+
+    open suspend fun getClockAnchor(): ClockAnchor? {
+        val prefs = dataStore.data.first()
+        val wall = prefs[SettingsKeys.clockAnchorWallEpochMs] ?: return null
+        val elapsed = prefs[SettingsKeys.clockAnchorElapsedRealtimeMs] ?: return null
+        val bootCount = prefs[SettingsKeys.clockAnchorBootCount] ?: return null
+        return ClockAnchor(wall, elapsed, bootCount)
+    }
+
+    open suspend fun setClockAnchor(anchor: ClockAnchor) {
+        dataStore.edit { prefs ->
+            prefs[SettingsKeys.clockAnchorWallEpochMs] = anchor.wallEpochMs
+            prefs[SettingsKeys.clockAnchorElapsedRealtimeMs] = anchor.elapsedRealtimeMs
+            prefs[SettingsKeys.clockAnchorBootCount] = anchor.bootCount
+        }
+    }
+
+    open suspend fun clearClockAnchor() {
+        dataStore.edit { prefs ->
+            prefs.remove(SettingsKeys.clockAnchorWallEpochMs)
+            prefs.remove(SettingsKeys.clockAnchorElapsedRealtimeMs)
+            prefs.remove(SettingsKeys.clockAnchorBootCount)
         }
     }
 
@@ -178,14 +279,60 @@ open class SettingsDataStore(context: Context) {
         return if (ms != null && ms > 0) ms else null
     }
 
+    open suspend fun getEmergencyUnlockRequestElapsedRealtimeMs(): Long? {
+        val prefs = dataStore.data.first()
+        return prefs[SettingsKeys.emergencyUnlockRequestElapsedRealtimeMs]
+    }
+
+    open suspend fun getEmergencyUnlockRequestBootCount(): Int? {
+        val prefs = dataStore.data.first()
+        return prefs[SettingsKeys.emergencyUnlockRequestBootCount]
+    }
+
     open suspend fun setEmergencyUnlockRequestEpochMs(ms: Long?) {
+        setEmergencyUnlockRequest(ms, null, null)
+    }
+
+    open suspend fun setEmergencyUnlockRequest(
+        epochMs: Long?,
+        elapsedRealtimeMs: Long?,
+        bootCount: Int?
+    ) {
         dataStore.edit { prefs ->
-            if (ms != null) {
-                prefs[SettingsKeys.emergencyUnlockRequestEpochMs] = ms
+            if (epochMs != null) {
+                prefs[SettingsKeys.emergencyUnlockRequestEpochMs] = epochMs
+                if (elapsedRealtimeMs != null) {
+                    prefs[SettingsKeys.emergencyUnlockRequestElapsedRealtimeMs] = elapsedRealtimeMs
+                } else {
+                    prefs.remove(SettingsKeys.emergencyUnlockRequestElapsedRealtimeMs)
+                }
+                if (bootCount != null) {
+                    prefs[SettingsKeys.emergencyUnlockRequestBootCount] = bootCount
+                } else {
+                    prefs.remove(SettingsKeys.emergencyUnlockRequestBootCount)
+                }
             } else {
                 prefs.remove(SettingsKeys.emergencyUnlockRequestEpochMs)
+                prefs.remove(SettingsKeys.emergencyUnlockRequestElapsedRealtimeMs)
+                prefs.remove(SettingsKeys.emergencyUnlockRequestBootCount)
             }
         }
+    }
+
+    open suspend fun isOnboardingCompleted(): Boolean {
+        return dataStore.data.first()[SettingsKeys.onboardingCompleted] ?: false
+    }
+
+    open suspend fun setOnboardingCompleted(completed: Boolean) {
+        dataStore.edit { prefs -> prefs[SettingsKeys.onboardingCompleted] = completed }
+    }
+
+    open suspend fun isPlayDisclosureAccepted(): Boolean {
+        return dataStore.data.first()[SettingsKeys.playDisclosureAccepted] ?: false
+    }
+
+    open suspend fun setPlayDisclosureAccepted(accepted: Boolean) {
+        dataStore.edit { prefs -> prefs[SettingsKeys.playDisclosureAccepted] = accepted }
     }
 
     open fun flowString(key: Preferences.Key<String>, default: String): Flow<String> {

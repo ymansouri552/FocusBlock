@@ -14,6 +14,7 @@ import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.SystemPermissionChecker
 import com.focusblock.domain.usecase.SystemPermissionsState
 import com.focusblock.domain.usecase.ToggleProfileUseCase
+import com.focusblock.domain.usecase.TrustedClock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
@@ -32,6 +33,7 @@ class HomeViewModel @Inject constructor(
     private val quickBlockUseCase: QuickBlockUseCase,
     private val settingsDataStore: SettingsDataStore,
     private val emergencyUnlockUseCase: EmergencyUnlockUseCase,
+    private val trustedClock: TrustedClock,
     val permissionChecker: SystemPermissionChecker
 ) : ViewModel() {
 
@@ -62,6 +64,9 @@ class HomeViewModel @Inject constructor(
         _permissionsState.value = permissionChecker.checkPermissions()
     }
 
+    /** Tamper-resistant wall clock used for all UI countdowns and strict checks. */
+    suspend fun now(): Instant = trustedClock.now()
+
     fun toggleProfile(id: Int, enabled: Boolean) {
         viewModelScope.launch {
             val result = toggleProfileUseCase.invoke(id, enabled)
@@ -90,7 +95,7 @@ class HomeViewModel @Inject constructor(
     fun disarmStrictMode() {
         viewModelScope.launch {
             val current = settingsDataStore.getStrictModeState()
-            val now = Instant.now()
+            val now = trustedClock.now()
             if (!current.isArmed) {
                 return@launch
             }

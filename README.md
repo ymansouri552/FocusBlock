@@ -19,8 +19,8 @@ Android app blocker with scheduled blocks and Strict Mode.
 - Device Administrator (`DeviceAdminReceiver`) prevents normal uninstallation while active.
 - AccessibilityService detects blocked apps and shows the block screen.
 - Two strict levels: Targeted (blocks admin/accessibility/app-info/installer screens) and Aggressive (blocks whole Settings app).
-- Clock tampering detected via `TIME_CHANGED`/`TIMEZONE_CHANGED`; `elapsedRealtime()` used alongside wall-clock.
-- Emergency unlock (off by default) requires a waiting period.
+- Clock tampering protected via `TrustedClock` anchored to `elapsedRealtime()`, protecting both independent strict mode and active profile schedules against device clock manipulation.
+- Emergency unlock (off by default) requires an elapsed-time waiting period.
 
 ## Limits (documented in-app)
 Strict mode cannot stop Safe Mode, ADB, factory reset, or a second device.
@@ -51,13 +51,17 @@ Signed release:
 
 ### Test
 ```bash
-./gradlew testDebugUnitTest
+# Test Play flavor unit tests
+./gradlew testPlayDebugUnitTest
+
+# Test Sideload flavor unit tests
+./gradlew testSideloadDebugUnitTest
 ```
 
 ## Known limitations
 - Strict mode cannot stop Safe Mode, ADB, factory reset, or a second device.
 - Device Admin (non-Device-Owner) cannot fully block `setPackagesSuspended`; those are reserved for Device Owner.
-- Accessibility-based blocking requires the user to enable the service; if disabled, blocking falls back to UsageStats (non-strict only).
+- Accessibility-based blocking requires the user to enable the Accessibility Service in Android Settings.
 
 ## QA checklist
 See `QA_CHECKLIST.md`.

@@ -175,4 +175,11 @@ class ScheduleEngineTest {
         assertNotNull(info)
         assertEquals(end, info.endInstant)
     }
+
+    @Test
+    fun recurring_start_equals_end_is_not_active() {
+        val now = instant(2026, 10, 19, 10, 0)
+        val p = profile("SameTime", setOf("com.app.a"), schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(10, 0))))
+        assertFalse(isActive(p, now))
+    }
 }

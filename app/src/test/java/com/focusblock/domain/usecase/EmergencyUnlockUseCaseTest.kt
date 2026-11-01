@@ -24,6 +24,8 @@ class EmergencyUnlockUseCaseTest {
     private lateinit var settingsDataStore: SettingsDataStore
     private lateinit var useCase: EmergencyUnlockUseCase
 
+    private val bootCount = 1
+
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
@@ -50,15 +52,20 @@ class EmergencyUnlockUseCaseTest {
     @Test
     fun request_unlock_initiates_waiting_period_with_countdown(): Unit = runBlocking {
         val requestTime = Instant.parse("2026-10-30T10:00:00Z")
+        val startElapsed = 1_000_000L
         settingsDataStore.setEmergencyUnlockEnabled(true)
         settingsDataStore.setEmergencyUnlockMinutes(15)
 
-        val initiated = useCase.requestUnlock(requestTime)
+        val initiated = useCase.requestUnlock(requestTime, startElapsed, bootCount)
         assertTrue(initiated)
 
-        // 5 minutes later, still waiting
+        // 5 real minutes later, still waiting
         val checkTime = requestTime.plus(Duration.ofMinutes(5))
-        val status = useCase.getStatus(checkTime)
+        val status = useCase.getStatus(
+            checkTime,
+            startElapsed + Duration.ofMinutes(5).toMillis(),
+            bootCount
+        )
 
         assertIs<EmergencyUnlockStatus.Waiting>(status)
         assertEquals(600L, status.remainingSeconds) // 10 minutes = 600s remaining
@@ -67,33 +74,68 @@ class EmergencyUnlockUseCaseTest {
     @Test
     fun transitions_to_available_after_waiting_period_expires(): Unit = runBlocking {
         val requestTime = Instant.parse("2026-10-30T10:00:00Z")
+        val startElapsed = 1_000_000L
         settingsDataStore.setEmergencyUnlockEnabled(true)
         settingsDataStore.setEmergencyUnlockMinutes(15)
 
-        useCase.requestUnlock(requestTime)
+        useCase.requestUnlock(requestTime, startElapsed, bootCount)
 
-        // 15 minutes and 1 second later
+        // 15 minutes and 1 second of real time later
         val afterWait = requestTime.plus(Duration.ofMinutes(15)).plusSeconds(1)
-        val status = useCase.getStatus(afterWait)
+        val status = useCase.getStatus(
+            afterWait,
+            startElapsed + Duration.ofMinutes(15).toMillis() + 1_000L,
+            bootCount
+        )
 
         assertIs<EmergencyUnlockStatus.Available>(status)
     }
 
     @Test
+    fun rolling_clock_forward_does_not_skip_waiting_period(): Unit = runBlocking {
+        val requestTime = Instant.parse("2026-10-30T10:00:00Z")
+        val startElapsed = 1_000_000L
+        settingsDataStore.setEmergencyUnlockEnabled(true)
+        settingsDataStore.setEmergencyUnlockMinutes(15)
+
+        useCase.requestUnlock(requestTime, startElapsed, bootCount)
+
+        // Clock jumped a day ahead, but only 30 real seconds elapsed.
+        val status = useCase.getStatus(
+            requestTime.plus(Duration.ofDays(1)),
+            startElapsed + 30_000L,
+            bootCount
+        )
+
+        assertIs<EmergencyUnlockStatus.Waiting>(status)
+        assertEquals(870L, status.remainingSeconds)
+    }
+
+    @Test
     fun confirm_unlock_disarms_strict_mode_when_available(): Unit = runBlocking {
         val requestTime = Instant.parse("2026-10-30T10:00:00Z")
+        val startElapsed = 1_000_000L
         settingsDataStore.setEmergencyUnlockEnabled(true)
         settingsDataStore.setEmergencyUnlockMinutes(15)
 
         // Arm strict mode
-        settingsDataStore.armStrictMode(StrictTermType.HOURS_4, requestTime.plus(Duration.ofHours(4)), requestTime)
+        settingsDataStore.armStrictMode(
+            StrictTermType.HOURS_4,
+            requestTime.plus(Duration.ofHours(4)),
+            requestTime,
+            startElapsed
+        )
         StrictModeRules.independentState = settingsDataStore.getStrictModeState()
         assertTrue(StrictModeRules.independentState.isArmed)
 
-        useCase.requestUnlock(requestTime)
+        useCase.requestUnlock(requestTime, startElapsed, bootCount)
 
         val afterWait = requestTime.plus(Duration.ofMinutes(15))
-        val confirmed = useCase.confirmUnlock(afterWait)
+        val confirmed = useCase.confirmUnlock(
+            afterWait,
+            startElapsed + Duration.ofMinutes(15).toMillis(),
+            bootCount
+        )
 
         assertTrue(confirmed)
         assertFalse(settingsDataStore.getStrictModeState().isArmed)

@@ -39,6 +39,7 @@ class RestoreBlockStateUseCaseTest {
 
     private lateinit var context: Context
     private lateinit var settingsDataStore: SettingsDataStore
+    private lateinit var trustedClock: TrustedClock
     private lateinit var fakeProfileRepo: FakeProfileRepository
     private lateinit var useCase: RestoreBlockStateUseCase
 
@@ -46,8 +47,9 @@ class RestoreBlockStateUseCaseTest {
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
         settingsDataStore = SettingsDataStore(context)
+        trustedClock = TrustedClock(context, settingsDataStore)
         fakeProfileRepo = FakeProfileRepository()
-        useCase = RestoreBlockStateUseCase(settingsDataStore, fakeProfileRepo)
+        useCase = RestoreBlockStateUseCase(settingsDataStore, fakeProfileRepo, trustedClock)
         StrictModeRules.independentState = StrictModeState()
     }
 
@@ -56,7 +58,7 @@ class RestoreBlockStateUseCaseTest {
         val now = Instant.parse("2026-10-30T12:00:00Z")
         val futureEnd = now.plus(Duration.ofHours(4))
 
-        settingsDataStore.armStrictMode(StrictTermType.HOURS_4, futureEnd)
+        settingsDataStore.armStrictMode(StrictTermType.HOURS_4, futureEnd, now = now)
 
         val restored = useCase.restore(now)
 
@@ -90,6 +92,39 @@ class RestoreBlockStateUseCaseTest {
 
         assertTrue(restored.isArmed)
         assertEquals(StrictTermType.ONGOING, restored.termType)
+        assertTrue(StrictModeRules.independentState.isArmed)
+    }
+
+    @Test
+    fun reboot_with_clock_rolled_past_end_does_not_disarm_strict_mode() = runBlocking {
+        val start = Instant.parse("2026-10-30T10:00:00Z")
+        val end = start.plus(Duration.ofHours(4)) // 14:00
+        val originalElapsed = 10_000_000L
+        val originalBootCount = 1
+
+        settingsDataStore.armStrictMode(
+            termType = StrictTermType.HOURS_4,
+            customEndInstant = end,
+            now = start,
+            elapsedRealtimeMs = originalElapsed,
+            bootCount = originalBootCount
+        )
+        // 1 real hour had passed before shutdown.
+        settingsDataStore.recordStrictElapsedProgress(
+            currentElapsedRealtimeMs = originalElapsed + Duration.ofHours(1).toMillis(),
+            bootCount = originalBootCount
+        )
+
+        // Rebooted the next day with the wall clock rolled far past the end.
+        val rebootedWall = Instant.parse("2026-10-31T10:00:00Z")
+        val newElapsed = 5_000_000L
+        val newBootCount = 2
+
+        val restored = useCase.restore(rebootedWall, newElapsed, newBootCount)
+
+        assertTrue(restored.isArmed)
+        // 3 real hours of the 4-hour term remain after the reboot.
+        assertEquals(rebootedWall.plus(Duration.ofHours(3)), restored.endInstant)
         assertTrue(StrictModeRules.independentState.isArmed)
     }
 }
