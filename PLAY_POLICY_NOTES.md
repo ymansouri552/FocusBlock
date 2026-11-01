@@ -6,6 +6,7 @@
 |------------|-------------|---------------|
 | `android.permission.BIND_ACCESSIBILITY_SERVICE` | Manifest (granted by system when user enables the service) | Required to bind the AccessibilityService that detects foreground app changes and enforces blocks. The service is exported and declared in the manifest. |
 | `android.permission.RECEIVE_BOOT_COMPLETED` | Manifest | Re-initializes block state after device reboot. |
+| `android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS` | Manifest | Required to request exemption from battery optimizations so OEM battery savers do not kill the accessibility block engine in the background. |
 
 ### Not declared (intentionally)
 - **No `INTERNET` permission.** All data is local; nothing is collected or transmitted.

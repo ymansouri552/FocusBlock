@@ -5,6 +5,7 @@
     <!-- No network permission is used intentionally. All data stays local. -->
 
     <uses-permission android:name="android.permission.RECEIVE_BOOT_COMPLETED" />
+    <uses-permission android:name="android.permission.REQUEST_IGNORE_BATTERY_OPTIMIZATIONS" />
 
     <queries>
         <!-- Launcher-intent approach to list launchable apps (avoids QUERY_ALL_PACKAGES where possible). -->

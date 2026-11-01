@@ -1,7 +1,9 @@
 package com.focusblock.domain.usecase
 
 import android.content.Context
+import android.provider.Settings
 import androidx.test.core.app.ApplicationProvider
+import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
@@ -53,5 +55,19 @@ class SystemPermissionCheckerTest {
         )
         assertTrue(stateAllGranted.allRequiredGranted)
         assertFalse(stateAllGranted.hasAnyWarning)
+    }
+
+    @Test
+    fun getBatteryOptimizationIntent_returnsValidIntent() {
+        val intent = permissionChecker.getBatteryOptimizationIntent()
+        assertNotNull(intent)
+        assertEquals(Settings.ACTION_REQUEST_IGNORE_BATTERY_OPTIMIZATIONS, intent.action)
+        assertEquals("package:${context.packageName}", intent.dataString)
+    }
+
+    @Test
+    fun launchBatteryOptimizationSettings_doesNotCrash() {
+        val result = permissionChecker.launchBatteryOptimizationSettings()
+        assertTrue(result)
     }
 }

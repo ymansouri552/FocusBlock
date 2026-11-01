@@ -232,11 +232,7 @@ fun HomeScreen(
                         }
                     },
                     onFixBattery = {
-                        try {
-                            context.startActivity(viewModel.permissionChecker.getBatteryOptimizationIntent())
-                        } catch (e: Exception) {
-                            // ignore
-                        }
+                        viewModel.permissionChecker.launchBatteryOptimizationSettings(context)
                     }
                 )
             }
