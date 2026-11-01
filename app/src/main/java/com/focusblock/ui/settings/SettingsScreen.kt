@@ -28,7 +28,6 @@ import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.RadioButton
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
@@ -46,7 +45,6 @@ import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focusblock.R
-import com.focusblock.data.local.datastore.StrictLevel
 import com.focusblock.ui.theme.LocalCustomColors
 
 @OptIn(ExperimentalMaterial3Api::class)
@@ -89,7 +87,7 @@ fun SettingsScreen(
                 .padding(16.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── Strict Protection Level Card ────────────────────────────────
+            // ── Strict Tamper Protection Card ────────────────────────────────
             Card(
                 modifier = Modifier.fillMaxWidth(),
                 shape = RoundedCornerShape(16.dp),
@@ -106,63 +104,41 @@ fun SettingsScreen(
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = stringResource(id = R.string.settings_strict_level),
+                            text = stringResource(id = R.string.settings_strict_protection),
                             style = MaterialTheme.typography.titleMedium,
                             fontWeight = FontWeight.Bold
                         )
                     }
+                    Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = stringResource(id = R.string.settings_strict_level_summary),
+                        text = stringResource(id = R.string.settings_strict_protection_summary),
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
-                    Spacer(modifier = Modifier.height(12.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
 
-                    StrictLevel.entries.forEach { level ->
-                        val isSelected = ui.strictLevel == level.value
-                        Surface(
-                            shape = RoundedCornerShape(12.dp),
-                            color = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-                            else MaterialTheme.colorScheme.surface,
-                            border = if (isSelected) BorderStroke(1.dp, MaterialTheme.colorScheme.primary)
-                            else BorderStroke(1.dp, customColors.cardBorder),
-                            modifier = Modifier
-                                .fillMaxWidth()
-                                .padding(vertical = 4.dp)
-                                .clip(RoundedCornerShape(12.dp))
-                                .clickable { viewModel.setStrictLevel(level.value) }
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(12.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                RadioButton(
-                                    selected = isSelected,
-                                    onClick = { viewModel.setStrictLevel(level.value) }
-                                )
-                                Spacer(modifier = Modifier.width(8.dp))
-                                Column {
-                                    Text(
-                                        text = if (level == StrictLevel.TARGETED) {
-                                            stringResource(id = R.string.settings_strict_targeted)
-                                        } else {
-                                            stringResource(id = R.string.settings_strict_aggressive)
-                                        },
-                                        fontWeight = FontWeight.SemiBold,
-                                        style = MaterialTheme.typography.bodyMedium
-                                    )
-                                    Text(
-                                        text = if (level == StrictLevel.TARGETED) {
-                                            stringResource(id = R.string.settings_strict_targeted_summary)
-                                        } else {
-                                            stringResource(id = R.string.settings_strict_aggressive_summary)
-                                        },
-                                        style = MaterialTheme.typography.bodySmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                                    )
-                                }
-                            }
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(id = R.string.settings_block_browsers),
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = FontWeight.SemiBold
+                            )
+                            Text(
+                                text = stringResource(id = R.string.settings_block_browsers_summary),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
                         }
+                        Spacer(modifier = Modifier.width(16.dp))
+                        Switch(
+                            checked = ui.blockBrowsersInStrict,
+                            onCheckedChange = { viewModel.setBlockBrowsersInStrict(it) }
+                        )
                     }
                 }
             }

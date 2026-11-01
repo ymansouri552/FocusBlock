@@ -77,9 +77,9 @@ class StrictProtectionEvaluator @Inject constructor() {
 
     fun shouldBlockTamperAttempt(
         pkg: String,
-        className: String?,
-        strictLevel: StrictLevel,
-        isStrictActive: Boolean
+        className: String? = null,
+        isStrictActive: Boolean,
+        blockBrowsers: Boolean = false
     ): Boolean {
         if (!isStrictActive) return false
 
@@ -88,25 +88,31 @@ class StrictProtectionEvaluator @Inject constructor() {
             return true
         }
 
-        // 2. In Aggressive Strict Mode, block browsers to prevent mobile web bypass of blocked apps
-        if (strictLevel == StrictLevel.AGGRESSIVE && isBrowserApp(pkg)) {
+        // 2. Settings & Security app protection: completely block Settings app to prevent disabling
+        // Accessibility, removing Device Admin, Force Stopping, clearing data, or altering Date/Time.
+        if (isSettingsOrSecurityApp(pkg)) {
             return true
         }
 
-        // 2. Settings & Security app protection
-        if (isSettingsOrSecurityApp(pkg)) {
-            if (strictLevel == StrictLevel.AGGRESSIVE) {
-                // Aggressive mode: completely block Settings app
-                return true
-            }
-
-            // Targeted mode: block only sensitive screens (admin, accessibility, app info / force stop)
-            if (className != null) {
-                val lowerClass = className.lowercase()
-                return TARGETED_CLASS_KEYWORDS.any { lowerClass.contains(it) }
-            }
+        // 3. Web browsers blocked if enabled to prevent mobile web bypass of blocked apps
+        if (blockBrowsers && isBrowserApp(pkg)) {
+            return true
         }
 
         return false
+    }
+
+    fun shouldBlockTamperAttempt(
+        pkg: String,
+        className: String?,
+        strictLevel: StrictLevel,
+        isStrictActive: Boolean
+    ): Boolean {
+        return shouldBlockTamperAttempt(
+            pkg = pkg,
+            className = className,
+            isStrictActive = isStrictActive,
+            blockBrowsers = (strictLevel == StrictLevel.AGGRESSIVE)
+        )
     }
 }

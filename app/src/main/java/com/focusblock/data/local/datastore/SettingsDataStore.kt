@@ -29,6 +29,7 @@ object SettingsKeys {
     val exactAlarmsGranted = stringPreferencesKey("exact_alarms_granted")
     val batteryOptimizationExempt = stringPreferencesKey("battery_optimization_exempt")
     val strictLevel = stringPreferencesKey("strict_level")
+    val blockBrowsersInStrict = booleanPreferencesKey("block_browsers_in_strict")
     val emergencyUnlockMinutes = stringPreferencesKey("emergency_unlock_minutes")
     val emergencyUnlockEnabled = stringPreferencesKey("emergency_unlock_enabled")
     val emergencyUnlockRequestEpochMs = longPreferencesKey("emergency_unlock_request_epoch_ms")
@@ -341,5 +342,13 @@ open class SettingsDataStore(context: Context) {
 
     open suspend fun readString(key: Preferences.Key<String>, default: String): String {
         return dataStore.data.first().let { prefs -> prefs[key] ?: default }
+    }
+
+    open fun flowBoolean(key: Preferences.Key<Boolean>, default: Boolean): Flow<Boolean> {
+        return settings.map { prefs -> prefs[key] ?: default }
+    }
+
+    open suspend fun writeBoolean(key: Preferences.Key<Boolean>, value: Boolean) {
+        dataStore.edit { prefs -> prefs[key] = value }
     }
 }

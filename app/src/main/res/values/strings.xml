@@ -149,12 +149,10 @@
 
     <!-- Settings -->
     <string name="settings_title">Settings</string>
-    <string name="settings_strict_level">Strict Level</string>
-    <string name="settings_strict_level_summary">How aggressively to protect strict blocks.</string>
-    <string name="settings_strict_targeted">Targeted</string>
-    <string name="settings_strict_targeted_summary">Block only admin, accessibility, app info, and installer screens.</string>
-    <string name="settings_strict_aggressive">Aggressive</string>
-    <string name="settings_strict_aggressive_summary">Block the whole Settings app during strict blocks.</string>
+    <string name="settings_strict_protection">Strict Mode Tamper Protection</string>
+    <string name="settings_strict_protection_summary">When Strict Mode is active, System Settings and Package Installers are completely blocked to prevent tampering, disabling accessibility, or uninstalling FocusBlock. Quick settings in your notification panel (Wi-Fi, Bluetooth, Sound) remain accessible.</string>
+    <string name="settings_block_browsers">Block Web Browsers</string>
+    <string name="settings_block_browsers_summary">Block Chrome, Firefox, and other web browsers during active strict sessions to prevent bypassing blocked apps via mobile web.</string>
     <string name="settings_emergency_unlock">Emergency Unlock</string>
     <string name="settings_emergency_unlock_summary">Off by default. Requires a waiting period before unlocking.</string>
     <string name="settings_theme">Theme</string>

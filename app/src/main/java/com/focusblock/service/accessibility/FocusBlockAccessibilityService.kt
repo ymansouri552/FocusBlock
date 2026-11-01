@@ -7,6 +7,7 @@ import android.content.Intent
 import android.content.pm.PackageManager
 import android.provider.Settings
 import android.telecom.TelecomManager
+import android.util.Log
 import android.view.KeyEvent
 import android.view.accessibility.AccessibilityEvent
 import com.focusblock.data.local.datastore.SettingsDataStore
@@ -66,10 +67,19 @@ class FocusBlockAccessibilityService : AccessibilityService() {
     private var cachedStrictState: StrictModeState = StrictModeState()
 
     @Volatile
-    private var cachedStrictLevel: StrictLevel = StrictLevel.TARGETED
+    private var cachedBlockBrowsers: Boolean = false
+
+    private var isObserving = false
+
+    override fun onCreate() {
+        super.onCreate()
+        Log.d("FocusBlockA11y", "onCreate called")
+        startObservers()
+    }
 
     override fun onServiceConnected() {
         super.onServiceConnected()
+        Log.d("FocusBlockA11y", "onServiceConnected called")
         val info = serviceInfo
         if (info != null) {
             info.eventTypes = AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED
@@ -77,11 +87,19 @@ class FocusBlockAccessibilityService : AccessibilityService() {
             info.notificationTimeout = 100
             serviceInfo = info
         }
+        startObservers()
+    }
+
+    private fun startObservers() {
+        if (isObserving) return
+        isObserving = true
+        Log.d("FocusBlockA11y", "startObservers initialized")
 
         // Cache the profile list so blocking decisions are always up to date.
         serviceScope.launch {
             profileRepository.getAllProfiles().collect { profiles ->
                 cachedProfiles = profiles
+                Log.d("FocusBlockA11y", "profiles updated: count=${profiles.size}")
             }
         }
 
@@ -90,13 +108,14 @@ class FocusBlockAccessibilityService : AccessibilityService() {
             settingsDataStore.strictModeState.collect { state ->
                 cachedStrictState = state
                 StrictModeRules.independentState = state
+                Log.d("FocusBlockA11y", "strictModeState updated: isArmed=${state.isArmed}, end=${state.endInstant}")
             }
         }
 
-        // Keep strict level (Targeted vs Aggressive) updated
+        // Keep browser blocking preference updated
         serviceScope.launch {
-            settingsDataStore.flowString(SettingsKeys.strictLevel, StrictLevel.TARGETED.value).collect { levelStr ->
-                cachedStrictLevel = runCatching { StrictLevel.valueOf(levelStr) }.getOrDefault(StrictLevel.TARGETED)
+            settingsDataStore.flowBoolean(SettingsKeys.blockBrowsersInStrict, false).collect { enabled ->
+                cachedBlockBrowsers = enabled
             }
         }
 
@@ -114,22 +133,27 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         if (event.eventType != AccessibilityEvent.TYPE_WINDOW_STATE_CHANGED) return
 
         val pkg = event.packageName?.toString() ?: return
+        Log.d("FocusBlockA11y", "Event: pkg=$pkg, class=${event.className}")
 
         // Ignore FocusBlock itself and critical phone infrastructure (launcher, keyboard, dialer, systemui)
-        if (isCriticalSystemApp(pkg)) return
+        if (isCriticalSystemApp(pkg)) {
+            Log.d("FocusBlockA11y", "Ignoring critical system app: $pkg")
+            return
+        }
 
         val now = trustedNow
         val activeProfiles = ScheduleEngine.activeProfiles(cachedProfiles, now)
 
-        // 1. Strict Mode Tamper Evaluation (Targeted vs Aggressive Settings / Installer protection)
+        // 1. Strict Mode Tamper Evaluation (Settings / Installer / Browser protection)
         val strictRemainingMs = getStrictRemainingMs(now, activeProfiles)
         val isStrictActive = strictRemainingMs != null && strictRemainingMs > 0
+        Log.d("FocusBlockA11y", "Checking tamper: pkg=$pkg, isStrictActive=$isStrictActive, remainingMs=$strictRemainingMs, cachedArmed=${cachedStrictState.isArmed}")
 
         if (isStrictActive && strictEvaluator.shouldBlockTamperAttempt(
                 pkg = pkg,
                 className = event.className?.toString(),
-                strictLevel = cachedStrictLevel,
-                isStrictActive = isStrictActive
+                isStrictActive = isStrictActive,
+                blockBrowsers = cachedBlockBrowsers
             )
         ) {
             val appLabel = when {
@@ -221,6 +245,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         timeRemainingMs: Long,
         isStrict: Boolean
     ) {
+        Log.d("FocusBlockA11y", "triggerBlockScreen: appName=$appName, profile=$profileName, isStrict=$isStrict")
         if (!serviceScope.isActive) return
 
         val intent = Intent(this, BlockScreenActivity::class.java).apply {
@@ -241,6 +266,11 @@ class FocusBlockAccessibilityService : AccessibilityService() {
     private fun isCriticalSystemApp(pkg: String): Boolean {
         // Never block FocusBlock itself
         if (pkg == packageName) return true
+
+        // Settings and Installers are NEVER critical system apps — they must be evaluated by tamper protection
+        if (strictEvaluator.isSettingsOrSecurityApp(pkg) || strictEvaluator.isInstallerApp(pkg)) {
+            return false
+        }
 
         // Never block System UI or Google Play Services framework
         if (pkg == "com.android.systemui" || pkg == "com.google.android.gms") return true

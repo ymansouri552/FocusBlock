@@ -23,14 +23,23 @@ class SettingsViewModel @Inject constructor(
 
     init {
         viewModelScope.launch {
-            val level = dataStore.flowString(SettingsKeys.strictLevel, StrictLevel.TARGETED.value).first()
+            val level = dataStore.flowString(SettingsKeys.strictLevel, StrictLevel.AGGRESSIVE.value).first()
+            val blockBrowsers = dataStore.flowBoolean(SettingsKeys.blockBrowsersInStrict, false).first()
             val emergencyEnabled = dataStore.getEmergencyUnlockEnabled()
             val emergencyMins = dataStore.getEmergencyUnlockMinutes()
             _ui.value = SettingsUiState(
                 strictLevel = level,
+                blockBrowsersInStrict = blockBrowsers,
                 emergencyUnlockEnabled = emergencyEnabled,
                 emergencyUnlockMinutes = emergencyMins
             )
+        }
+    }
+
+    fun setBlockBrowsersInStrict(enabled: Boolean) {
+        viewModelScope.launch {
+            dataStore.writeBoolean(SettingsKeys.blockBrowsersInStrict, enabled)
+            _ui.value = _ui.value.copy(blockBrowsersInStrict = enabled)
         }
     }
 
@@ -56,7 +65,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     data class SettingsUiState(
-        val strictLevel: String = StrictLevel.TARGETED.value,
+        val strictLevel: String = StrictLevel.AGGRESSIVE.value,
+        val blockBrowsersInStrict: Boolean = false,
         val emergencyUnlockEnabled: Boolean = false,
         val emergencyUnlockMinutes: Int = 15
     )
