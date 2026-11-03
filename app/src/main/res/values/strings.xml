@@ -49,6 +49,29 @@
     <string name="home_blocked_apps">Blocked apps</string>
     <string name="quick_block_placeholder">Quick session setup</string>
 
+    <!-- Profile Wizard -->
+    <string name="wizard_title">New Profile</string>
+    <string name="wizard_step_1_title">Choose a Starting Point</string>
+    <string name="wizard_step_1_subtitle">Pick a proven template or start from scratch</string>
+    <string name="wizard_step_2_title">Select Apps to Block</string>
+    <string name="wizard_step_2_subtitle">Choose the apps you want to restrict</string>
+    <string name="wizard_step_3_title">Schedule &amp; Restrictions</string>
+    <string name="wizard_step_3_subtitle">Set when and how these apps are blocked</string>
+    <string name="wizard_step_4_title">Review &amp; Activate</string>
+    <string name="wizard_step_4_subtitle">Verify your configuration before saving</string>
+    <string name="wizard_preset_deep_work">Deep Work</string>
+    <string name="wizard_preset_screen_time">Daily Screen Time Budget</string>
+    <string name="wizard_preset_bedtime">Bedtime Wind Down</string>
+    <string name="wizard_preset_morning">Screen-Free Morning</string>
+    <string name="wizard_preset_custom">Custom Profile</string>
+    <string name="wizard_next">Continue</string>
+    <string name="wizard_back">Back</string>
+    <string name="wizard_create">Create Profile</string>
+    <string name="wizard_rule_blackout">Full Blackout</string>
+    <string name="wizard_rule_allowance">Time Allowance</string>
+    <string name="wizard_rule_blackout_desc">Completely block apps during active hours</string>
+    <string name="wizard_rule_allowance_desc">Allow limited screen time before blocking</string>
+
     <!-- Profile editor -->
     <string name="profile_editor_title">Profile</string>
     <string name="profile_editor_new">New profile</string>
@@ -142,8 +165,8 @@
     <string name="block_strict_message">This app is blocked by a strict profile. It cannot be unblocked until the schedule ends.</string>
 
     <!-- Usage Limit Block Strings -->
-    <string name="schedule_mode_block">Static Block</string>
-    <string name="schedule_mode_usage_limit">Usage Limit</string>
+    <string name="schedule_mode_block">Full Blackout</string>
+    <string name="schedule_mode_usage_limit">Time Allowance</string>
     <string name="schedule_hourly">Hourly</string>
     <string name="schedule_daily">Daily</string>
     <string name="schedule_time_window">Time Window</string>

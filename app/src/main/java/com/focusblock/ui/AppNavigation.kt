@@ -22,6 +22,8 @@ import com.focusblock.ui.onboarding.OnboardingViewModel
 import com.focusblock.ui.onboarding.PlayDisclosureScreen
 import com.focusblock.ui.profile.ProfileEditorScreen
 import com.focusblock.ui.profile.ProfileEditorViewModel
+import com.focusblock.ui.profile.ProfileWizardScreen
+import com.focusblock.ui.profile.ProfileWizardViewModel
 import com.focusblock.ui.settings.SettingsScreen
 import com.focusblock.ui.settings.SettingsViewModel
 
@@ -49,6 +51,10 @@ sealed interface Screen {
             return if (profileId == null) "profile_editor?profileId=-1"
             else "profile_editor?profileId=$profileId"
         }
+    }
+
+    data object PROFILE_WIZARD : Screen {
+        override val route: String = "profile_wizard"
     }
 
     data object SETTINGS : Screen {
@@ -118,11 +124,18 @@ fun AppNavigation() {
 
         composable(Screen.HOME.route) {
             HomeScreen(
-                onAddProfile = { navController.navigate(Screen.PROFILE_EDITOR.createRoute()) },
+                onAddProfile = { navController.navigate(Screen.PROFILE_WIZARD.route) },
                 onEditProfile = { profileId ->
                     navController.navigate(Screen.PROFILE_EDITOR.createRoute(profileId))
                 },
                 onOpenSettings = { navController.navigate(Screen.SETTINGS.route) }
+            )
+        }
+        composable(Screen.PROFILE_WIZARD.route) {
+            val viewModel: ProfileWizardViewModel = hiltViewModel()
+            ProfileWizardScreen(
+                viewModel = viewModel,
+                onBack = { navController.popBackStack() }
             )
         }
         composable(

@@ -431,13 +431,36 @@ fun ScheduleEditorDialog(
                 }
 
                 if (selectedType == ScheduleType.RECURRING || selectedType == ScheduleType.HOURLY || selectedType == ScheduleType.DAILY) {
-                    Text(
-                        text = stringResource(id = R.string.schedule_days),
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        verticalAlignment = Alignment.CenterVertically,
+                        horizontalArrangement = Arrangement.SpaceBetween
+                    ) {
+                        Text(
+                            text = stringResource(id = R.string.schedule_days),
+                            style = MaterialTheme.typography.titleSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = MaterialTheme.colorScheme.onSurface
+                        )
+                        Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                            TextButton(
+                                onClick = { daysOfWeek = setOf(1, 2, 3, 4, 5, 6, 7); errorMessage = null }
+                            ) {
+                                Text("All", style = MaterialTheme.typography.labelSmall)
+                            }
+                            TextButton(
+                                onClick = { daysOfWeek = setOf(2, 3, 4, 5, 6); errorMessage = null }
+                            ) {
+                                Text("Weekdays", style = MaterialTheme.typography.labelSmall)
+                            }
+                            TextButton(
+                                onClick = { daysOfWeek = setOf(1, 7); errorMessage = null }
+                            ) {
+                                Text("Weekends", style = MaterialTheme.typography.labelSmall)
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Row(
                         modifier = Modifier.fillMaxWidth(),
@@ -764,6 +787,64 @@ fun ScheduleEditorDialog(
                         shape = RoundedCornerShape(10.dp),
                         modifier = Modifier.fillMaxWidth()
                     )
+                }
+
+                Spacer(modifier = Modifier.height(16.dp))
+
+                val previewSchedule = remember(
+                    selectedType, selectedMode, usageLimitMinutes, limitScope,
+                    daysOfWeek, startTime, endTime, startDateTime, endDateTime, durationMinutes
+                ) {
+                    Schedule(
+                        type = selectedType,
+                        mode = selectedMode,
+                        usageLimitMinutes = if (selectedMode == ScheduleMode.USAGE_LIMIT) usageLimitMinutes else 0,
+                        limitScope = limitScope,
+                        daysOfWeek = daysOfWeek,
+                        startTime = startTime,
+                        endTime = endTime,
+                        startDateTime = startDateTime.atZone(zone).toInstant(),
+                        endDateTime = endDateTime.atZone(zone).toInstant(),
+                        durationMinutes = durationMinutes
+                    )
+                }
+
+                OutlinedCard(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(10.dp),
+                    colors = CardDefaults.outlinedCardColors(
+                        containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
+                    ),
+                    border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
+                ) {
+                    Row(
+                        modifier = Modifier.padding(12.dp),
+                        verticalAlignment = Alignment.Top
+                    ) {
+                        Icon(
+                            imageVector = Icons.Default.Schedule,
+                            contentDescription = null,
+                            tint = MaterialTheme.colorScheme.primary,
+                            modifier = Modifier
+                                .size(16.dp)
+                                .padding(top = 2.dp)
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Column {
+                            Text(
+                                text = "Rule Summary",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = MaterialTheme.colorScheme.primary
+                            )
+                            Spacer(modifier = Modifier.height(2.dp))
+                            Text(
+                                text = com.focusblock.domain.model.ProfilePresets.getExplanation(previewSchedule, 0),
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurface
+                            )
+                        }
+                    }
                 }
 
                 errorMessage?.let { error ->
