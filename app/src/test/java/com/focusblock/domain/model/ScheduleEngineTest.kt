@@ -23,7 +23,12 @@ class ScheduleEngineTest {
         return ZonedDateTime.of(year, month, day, hour, minute, 0, 0, zone).toInstant()
     }
 
-    private fun profile(name: String, apps: Set<String>, enabled: Boolean = true, schedules: List<Schedule> = emptyList()): Profile {
+    private fun profile(
+        name: String,
+        apps: Set<String>,
+        enabled: Boolean = true,
+        schedules: List<Schedule> = emptyList()
+    ): Profile {
         return Profile(id = 0, name = name, blockedApps = apps, strict = false, enabled = enabled, schedules = schedules)
     }
 
@@ -78,14 +83,11 @@ class ScheduleEngineTest {
 
     @Test
     fun overnight_recurring_active_after_midnight() {
-        // Monday 22:00 → Tuesday 02:00, days = {2} (Monday only).
-        // At Tuesday 01:00 the window is still active because it started Monday.
         val now = instant(2026, 10, 20, 1, 0) // Tuesday
         val p = profile("Night", setOf("com.app.b"), schedules = listOf(recurring(setOf(2), LocalTime.of(22, 0), LocalTime.of(2, 0))))
         assertTrue(isActive(p, now))
         val info = activeProfiles(listOf(p), now).singleOrNull()
         assertNotNull(info)
-        // End instant should be Tuesday 02:00
         val expectedEnd = instant(2026, 10, 20, 2, 0)
         assertEquals(expectedEnd, info.endInstant)
     }
@@ -181,5 +183,87 @@ class ScheduleEngineTest {
         val now = instant(2026, 10, 19, 10, 0)
         val p = profile("SameTime", setOf("com.app.a"), schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(10, 0))))
         assertFalse(isActive(p, now))
+    }
+
+    // ── Version 3: Hourly & Daily Schedules & Usage Limits ───────────────────────
+
+    @Test
+    fun hourly_schedule_active_within_current_hour_window() {
+        val now = instant(2026, 10, 19, 10, 35) // Monday 10:35
+        val schedule = Schedule(type = ScheduleType.HOURLY, daysOfWeek = setOf(2))
+        val p = profile("HourlyGame", setOf("com.supercell.clashofclans"), schedules = listOf(schedule))
+        assertTrue(isActive(p, now))
+        val info = activeProfiles(listOf(p), now).singleOrNull()
+        assertNotNull(info)
+        // Window should span 10:00 to 11:00
+        assertEquals(instant(2026, 10, 19, 10, 0), info.startInstant)
+        assertEquals(instant(2026, 10, 19, 11, 0), info.endInstant)
+    }
+
+    @Test
+    fun daily_schedule_active_within_today_window() {
+        val now = instant(2026, 10, 19, 15, 45) // Monday 15:45
+        val schedule = Schedule(type = ScheduleType.DAILY, daysOfWeek = setOf(2))
+        val p = profile("DailyYouTube", setOf("com.google.android.youtube"), schedules = listOf(schedule))
+        assertTrue(isActive(p, now))
+        val info = activeProfiles(listOf(p), now).singleOrNull()
+        assertNotNull(info)
+        // Window should span 00:00 to 24:00 (next day 00:00)
+        assertEquals(instant(2026, 10, 19, 0, 0), info.startInstant)
+        assertEquals(instant(2026, 10, 20, 0, 0), info.endInstant)
+    }
+
+    @Test
+    fun usage_limit_schedule_is_not_statically_blocked() {
+        // A usage limit schedule should be active, but NOT statically blocked
+        val now = instant(2026, 10, 19, 10, 30) // Monday
+        val schedule = Schedule(
+            type = ScheduleType.RECURRING,
+            mode = ScheduleMode.USAGE_LIMIT,
+            usageLimitMinutes = 15,
+            daysOfWeek = setOf(2),
+            startTime = LocalTime.of(8, 0),
+            endTime = LocalTime.of(12, 0)
+        )
+        val p = profile("UsageBlock", setOf("com.google.android.youtube"), schedules = listOf(schedule))
+        assertTrue(isActive(p, now))
+        // static blockedPackages should be empty because it is a usage limit, not a static block!
+        assertTrue(blockedPackages(listOf(p), now).isEmpty())
+    }
+
+    @Test
+    fun schedule_serialization_round_trip_with_v3_fields() {
+        val original = Schedule(
+            type = ScheduleType.HOURLY,
+            mode = ScheduleMode.USAGE_LIMIT,
+            usageLimitMinutes = 25,
+            limitScope = LimitScope.COMBINED,
+            daysOfWeek = setOf(2, 3, 4),
+            startTime = LocalTime.of(8, 0),
+            endTime = LocalTime.of(12, 0)
+        )
+        val serialized = original.toStorageString()
+        val deserialized = Schedule.fromStorageString(serialized)
+        assertNotNull(deserialized)
+        assertEquals(original.type, deserialized.type)
+        assertEquals(original.mode, deserialized.mode)
+        assertEquals(original.usageLimitMinutes, deserialized.usageLimitMinutes)
+        assertEquals(original.limitScope, deserialized.limitScope)
+        assertEquals(original.daysOfWeek, deserialized.daysOfWeek)
+        assertEquals(original.startTime, deserialized.startTime)
+        assertEquals(original.endTime, deserialized.endTime)
+    }
+
+    @Test
+    fun schedule_deserialization_handles_legacy_v2_strings() {
+        // A legacy string missing mode, usageLimitMinutes, and limitScope
+        val legacy = "type=RECURRING;days=2,3;startTime=09:00;endTime=17:00;startDateTime=;endDateTime=;durationMinutes=0;quickStart="
+        val deserialized = Schedule.fromStorageString(legacy)
+        assertNotNull(deserialized)
+        assertEquals(ScheduleType.RECURRING, deserialized.type)
+        assertEquals(ScheduleMode.BLOCK, deserialized.mode)
+        assertEquals(0, deserialized.usageLimitMinutes)
+        assertEquals(LimitScope.PER_APP, deserialized.limitScope)
+        assertEquals(setOf(2, 3), deserialized.daysOfWeek)
     }
 }

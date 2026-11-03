@@ -5,6 +5,9 @@ import androidx.lifecycle.viewModelScope
 import com.focusblock.data.local.datastore.SettingsDataStore
 import com.focusblock.data.local.datastore.SettingsKeys
 import com.focusblock.data.local.datastore.StrictLevel
+import com.focusblock.domain.usecase.EmergencyUnlockStatus
+import com.focusblock.domain.usecase.EmergencyUnlockUseCase
+import com.focusblock.domain.usecase.TrustedClock
 import dagger.hilt.android.lifecycle.HiltViewModel
 import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.StateFlow
@@ -15,7 +18,9 @@ import javax.inject.Inject
 
 @HiltViewModel
 class SettingsViewModel @Inject constructor(
-    private val dataStore: SettingsDataStore
+    private val dataStore: SettingsDataStore,
+    private val trustedClock: TrustedClock,
+    private val emergencyUnlockUseCase: EmergencyUnlockUseCase
 ) : ViewModel() {
 
     private val _ui = MutableStateFlow(SettingsUiState())
@@ -27,12 +32,50 @@ class SettingsViewModel @Inject constructor(
             val blockBrowsers = dataStore.flowBoolean(SettingsKeys.blockBrowsersInStrict, false).first()
             val emergencyEnabled = dataStore.getEmergencyUnlockEnabled()
             val emergencyMins = dataStore.getEmergencyUnlockMinutes()
+            val theme = dataStore.themeMode.first()
+            val strictState = dataStore.getStrictModeState()
+            val isStrict = strictState.isEffectivelyActive(trustedClock.now())
+
             _ui.value = SettingsUiState(
                 strictLevel = level,
                 blockBrowsersInStrict = blockBrowsers,
                 emergencyUnlockEnabled = emergencyEnabled,
-                emergencyUnlockMinutes = emergencyMins
+                emergencyUnlockMinutes = emergencyMins,
+                themeMode = theme,
+                isStrictActive = isStrict,
+                emergencyUnlockStatus = emergencyUnlockUseCase.getStatus(trustedClock.now())
             )
+
+            dataStore.strictModeState.collect { state ->
+                val active = state.isEffectivelyActive(trustedClock.now())
+                _ui.value = _ui.value.copy(
+                    isStrictActive = active,
+                    emergencyUnlockStatus = emergencyUnlockUseCase.getStatus(trustedClock.now())
+                )
+            }
+        }
+    }
+
+    /** Re-evaluates the strict term and emergency countdown; called by the screen once per second. */
+    fun refreshRuntimeState() {
+        viewModelScope.launch {
+            refreshRuntimeStateNow()
+        }
+    }
+
+    private suspend fun refreshRuntimeStateNow() {
+        val now = trustedClock.now()
+        val strictState = dataStore.getStrictModeState()
+        _ui.value = _ui.value.copy(
+            isStrictActive = strictState.isEffectivelyActive(now),
+            emergencyUnlockStatus = emergencyUnlockUseCase.getStatus(now)
+        )
+    }
+
+    fun setThemeMode(mode: String) {
+        viewModelScope.launch {
+            dataStore.setThemeMode(mode)
+            _ui.value = _ui.value.copy(themeMode = mode)
         }
     }
 
@@ -51,16 +94,46 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setEmergencyUnlockEnabled(enabled: Boolean) {
+        if (_ui.value.isStrictActive) return
         viewModelScope.launch {
+            // Configuration changes only happen outside strict mode, so any stored request is stale.
+            emergencyUnlockUseCase.cancelUnlock()
             dataStore.setEmergencyUnlockEnabled(enabled)
-            _ui.value = _ui.value.copy(emergencyUnlockEnabled = enabled)
+            _ui.value = _ui.value.copy(
+                emergencyUnlockEnabled = enabled,
+                emergencyUnlockStatus = emergencyUnlockUseCase.getStatus(trustedClock.now())
+            )
         }
     }
 
     fun setEmergencyUnlockMinutes(minutes: Int) {
+        if (_ui.value.isStrictActive) return
         viewModelScope.launch {
+            emergencyUnlockUseCase.cancelUnlock()
             dataStore.setEmergencyUnlockMinutes(minutes)
             _ui.value = _ui.value.copy(emergencyUnlockMinutes = minutes)
+        }
+    }
+
+    fun requestEmergencyUnlock() {
+        viewModelScope.launch {
+            if (!_ui.value.isStrictActive) return@launch
+            emergencyUnlockUseCase.requestUnlock()
+            refreshRuntimeStateNow()
+        }
+    }
+
+    fun cancelEmergencyUnlock() {
+        viewModelScope.launch {
+            emergencyUnlockUseCase.cancelUnlock()
+            refreshRuntimeStateNow()
+        }
+    }
+
+    fun confirmEmergencyUnlock() {
+        viewModelScope.launch {
+            emergencyUnlockUseCase.confirmUnlock(trustedClock.now())
+            refreshRuntimeStateNow()
         }
     }
 
@@ -68,6 +141,9 @@ class SettingsViewModel @Inject constructor(
         val strictLevel: String = StrictLevel.AGGRESSIVE.value,
         val blockBrowsersInStrict: Boolean = false,
         val emergencyUnlockEnabled: Boolean = false,
-        val emergencyUnlockMinutes: Int = 15
+        val emergencyUnlockMinutes: Int = 15,
+        val themeMode: String = "DARK",
+        val isStrictActive: Boolean = false,
+        val emergencyUnlockStatus: EmergencyUnlockStatus = EmergencyUnlockStatus.Disabled
     )
 }

@@ -3,8 +3,10 @@ package com.focusblock.di
 import android.content.Context
 import com.focusblock.data.local.datastore.SettingsDataStore
 import com.focusblock.data.local.room.AppDatabase
+import com.focusblock.data.repository.AppUsageRepositoryImpl
 import com.focusblock.data.repository.BlockLogRepositoryImpl
 import com.focusblock.data.repository.ProfileRepositoryImpl
+import com.focusblock.domain.repository.AppUsageRepository
 import com.focusblock.domain.repository.BlockLogRepository
 import com.focusblock.domain.repository.ProfileRepository
 import com.focusblock.domain.usecase.DeviceAdminAccessibilityEnforcer
@@ -42,6 +44,12 @@ object AppModule {
     @Singleton
     fun provideBlockLogRepository(database: AppDatabase): BlockLogRepository {
         return BlockLogRepositoryImpl(database.blockLogDao())
+    }
+
+    @Provides
+    @Singleton
+    fun provideAppUsageRepository(database: AppDatabase): AppUsageRepository {
+        return AppUsageRepositoryImpl(database.appUsageDao())
     }
 
     @Provides

@@ -4,7 +4,11 @@ import android.app.DatePickerDialog
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.interaction.MutableInteractionSource
+import androidx.compose.ui.graphics.Color
 import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
@@ -24,15 +28,21 @@ import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.AccessTime
+import androidx.compose.material.icons.filled.Block
 import androidx.compose.material.icons.filled.CalendarMonth
+import androidx.compose.material.icons.filled.CalendarToday
 import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.HourglassBottom
 import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Nightlight
 import androidx.compose.material.icons.filled.Repeat
+import androidx.compose.material.icons.filled.Schedule
+import androidx.compose.material.icons.filled.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.FilterChip
+import androidx.compose.material3.FilterChipDefaults
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
@@ -59,7 +69,9 @@ import androidx.compose.ui.text.input.KeyboardType
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import com.focusblock.R
+import com.focusblock.domain.model.LimitScope
 import com.focusblock.domain.model.Schedule
+import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.ScheduleType
 import com.focusblock.ui.theme.LocalCustomColors
 import java.time.Instant
@@ -85,22 +97,32 @@ fun ScheduleEditorDialog(
     val dateFormatter = remember { DateTimeFormatter.ofLocalizedDate(FormatStyle.MEDIUM) }
     val customColors = LocalCustomColors.current
 
+    var selectedMode by remember {
+        mutableStateOf(initialSchedule?.mode ?: ScheduleMode.BLOCK)
+    }
+
     var selectedType by remember {
         mutableStateOf(initialSchedule?.type ?: ScheduleType.RECURRING)
     }
 
-    // Recurring state (default Mon-Fri: 2..6, 09:00 - 17:00)
-    var daysOfWeek by remember {
-        mutableStateOf(initialSchedule?.daysOfWeek ?: setOf(2, 3, 4, 5, 6))
-    }
-    var startTime by remember {
-        mutableStateOf(initialSchedule?.startTime ?: LocalTime.of(9, 0))
-    }
-    var endTime by remember {
-        mutableStateOf(initialSchedule?.endTime ?: LocalTime.of(17, 0))
+    var usageLimitMinutes by remember {
+        mutableIntStateOf(if (initialSchedule != null && initialSchedule.usageLimitMinutes > 0) initialSchedule.usageLimitMinutes else 15)
     }
 
-    // One-off state
+    var limitScope by remember {
+        mutableStateOf(initialSchedule?.limitScope ?: LimitScope.PER_APP)
+    }
+
+    var daysOfWeek by remember {
+        mutableStateOf(initialSchedule?.daysOfWeek ?: setOf(1, 2, 3, 4, 5, 6, 7))
+    }
+    var startTime by remember {
+        mutableStateOf(initialSchedule?.startTime ?: LocalTime.of(8, 0))
+    }
+    var endTime by remember {
+        mutableStateOf(initialSchedule?.endTime ?: LocalTime.of(12, 0))
+    }
+
     var startDateTime by remember {
         val dt = initialSchedule?.startDateTime?.atZone(zone)?.toLocalDateTime()
             ?: LocalDateTime.now().plusHours(1).withMinute(0).withSecond(0)
@@ -112,7 +134,6 @@ fun ScheduleEditorDialog(
         mutableStateOf(dt)
     }
 
-    // Quick block state
     var durationMinutes by remember {
         mutableIntStateOf(if (initialSchedule != null && initialSchedule.durationMinutes > 0) initialSchedule.durationMinutes else 30)
     }
@@ -186,59 +207,262 @@ fun ScheduleEditorDialog(
                     .fillMaxWidth()
                     .verticalScroll(rememberScrollState())
             ) {
-                // Tab Selector
-                val types = listOf(ScheduleType.RECURRING, ScheduleType.ONE_OFF, ScheduleType.QUICK)
-                TabRow(
-                    selectedTabIndex = types.indexOf(selectedType),
+                Text(
+                    text = "Blocking Mode",
+                    style = MaterialTheme.typography.titleSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = MaterialTheme.colorScheme.onSurface
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+
+                val modes = listOf(ScheduleMode.BLOCK, ScheduleMode.USAGE_LIMIT)
+                Row(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .clip(RoundedCornerShape(12.dp))
+                        .clip(RoundedCornerShape(10.dp))
+                        .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                        .border(1.dp, customColors.cardBorder, RoundedCornerShape(10.dp))
+                        .padding(3.dp),
+                    horizontalArrangement = Arrangement.spacedBy(4.dp)
                 ) {
-                    types.forEach { type ->
-                        val (title, icon) = when (type) {
-                            ScheduleType.RECURRING -> stringResource(id = R.string.schedule_recurring) to Icons.Default.Repeat
-                            ScheduleType.ONE_OFF -> stringResource(id = R.string.schedule_one_off) to Icons.Default.CalendarMonth
-                            ScheduleType.QUICK -> stringResource(id = R.string.schedule_quick) to Icons.Default.HourglassTop
+                    modes.forEach { mode ->
+                        val isSelected = selectedMode == mode
+                        val title = when (mode) {
+                            ScheduleMode.BLOCK -> stringResource(id = R.string.schedule_mode_block)
+                            ScheduleMode.USAGE_LIMIT -> stringResource(id = R.string.schedule_mode_usage_limit)
                         }
-                        Tab(
-                            selected = selectedType == type,
-                            onClick = { selectedType = type },
-                            icon = { Icon(icon, contentDescription = null, modifier = Modifier.size(18.dp)) },
-                            text = { Text(text = title, maxLines = 1, fontSize = 12.sp, fontWeight = FontWeight.SemiBold) }
-                        )
+                        Box(
+                            modifier = Modifier
+                                .weight(1f)
+                                .height(44.dp)
+                                .clip(RoundedCornerShape(8.dp))
+                                .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                .clickable {
+                                    selectedMode = mode
+                                    errorMessage = null
+                                    if (mode == ScheduleMode.USAGE_LIMIT && (selectedType == ScheduleType.QUICK || selectedType == ScheduleType.ONE_OFF)) {
+                                        selectedType = ScheduleType.RECURRING
+                                    }
+                                },
+                            contentAlignment = Alignment.Center
+                        ) {
+                            Text(
+                                text = title,
+                                style = MaterialTheme.typography.bodyMedium,
+                                fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                            )
+                        }
                     }
                 }
 
-                Spacer(modifier = Modifier.height(18.dp))
+                Spacer(modifier = Modifier.height(16.dp))
 
-                when (selectedType) {
-                    ScheduleType.RECURRING -> {
-                        Text(
-                            text = stringResource(id = R.string.schedule_days).uppercase(),
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.sp
+                if (selectedMode == ScheduleMode.USAGE_LIMIT) {
+                    Text(
+                        text = stringResource(id = R.string.schedule_usage_limit_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val presets = listOf(5, 10, 15, 30, 45, 60)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        presets.forEach { minutes ->
+                            FilterChip(
+                                selected = usageLimitMinutes == minutes,
+                                onClick = { usageLimitMinutes = minutes },
+                                label = { Text("$minutes min") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    OutlinedTextField(
+                        value = if (usageLimitMinutes > 0) usageLimitMinutes.toString() else "",
+                        onValueChange = {
+                            usageLimitMinutes = it.filter { c -> c.isDigit() }.toIntOrNull() ?: 0
+                        },
+                        label = { Text("Allowed Duration (minutes)") },
+                        placeholder = { Text("e.g. 15") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "Quota Scope",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.spacedBy(8.dp)
+                    ) {
+                        FilterChip(
+                            selected = limitScope == LimitScope.PER_APP,
+                            onClick = { limitScope = LimitScope.PER_APP },
+                            label = { Text(stringResource(id = R.string.schedule_limit_scope_per_app)) },
+                            modifier = Modifier.weight(1f),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
-                        Spacer(modifier = Modifier.height(10.dp))
+                        FilterChip(
+                            selected = limitScope == LimitScope.COMBINED,
+                            onClick = { limitScope = LimitScope.COMBINED },
+                            label = { Text(stringResource(id = R.string.schedule_limit_scope_combined)) },
+                            modifier = Modifier.weight(1f),
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
+                        )
+                    }
 
-                        // Modern Circular Day Pills
-                        Row(
-                            modifier = Modifier.fillMaxWidth(),
-                            horizontalArrangement = Arrangement.SpaceBetween
-                        ) {
-                            daysList.forEach { (dayNum, dayLabel) ->
-                                val selected = daysOfWeek.contains(dayNum)
+                    Spacer(modifier = Modifier.height(16.dp))
+
+                    Text(
+                        text = stringResource(id = R.string.schedule_reset_frequency_title),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    val usageTypes = listOf(ScheduleType.RECURRING, ScheduleType.HOURLY, ScheduleType.DAILY)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .border(1.dp, customColors.cardBorder, RoundedCornerShape(10.dp))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        usageTypes.forEach { type ->
+                            val isSelected = selectedType == type
+                            val title = when (type) {
+                                ScheduleType.RECURRING -> stringResource(id = R.string.schedule_time_window)
+                                ScheduleType.HOURLY -> stringResource(id = R.string.schedule_hourly)
+                                ScheduleType.DAILY -> stringResource(id = R.string.schedule_daily)
+                                else -> ""
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                    .clickable {
+                                        selectedType = type
+                                        errorMessage = null
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(16.dp))
+                } else {
+                    val staticTypes = listOf(ScheduleType.RECURRING, ScheduleType.ONE_OFF, ScheduleType.QUICK)
+                    Row(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .clip(RoundedCornerShape(10.dp))
+                            .background(MaterialTheme.colorScheme.surfaceContainerHigh)
+                            .border(1.dp, customColors.cardBorder, RoundedCornerShape(10.dp))
+                            .padding(3.dp),
+                        horizontalArrangement = Arrangement.spacedBy(4.dp)
+                    ) {
+                        staticTypes.forEach { type ->
+                            val isSelected = selectedType == type
+                            val title = when (type) {
+                                ScheduleType.RECURRING -> stringResource(id = R.string.schedule_recurring)
+                                ScheduleType.ONE_OFF -> stringResource(id = R.string.schedule_one_off)
+                                ScheduleType.QUICK -> stringResource(id = R.string.schedule_quick)
+                                else -> ""
+                            }
+                            Box(
+                                modifier = Modifier
+                                    .weight(1f)
+                                    .height(42.dp)
+                                    .clip(RoundedCornerShape(8.dp))
+                                    .background(if (isSelected) MaterialTheme.colorScheme.primary else Color.Transparent)
+                                    .clickable {
+                                        selectedType = type
+                                        errorMessage = null
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = title,
+                                    style = MaterialTheme.typography.bodySmall,
+                                    fontWeight = if (isSelected) FontWeight.Bold else FontWeight.Medium,
+                                    color = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
+                                )
+                            }
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
+
+                if (selectedType == ScheduleType.RECURRING || selectedType == ScheduleType.HOURLY || selectedType == ScheduleType.DAILY) {
+                    Text(
+                        text = stringResource(id = R.string.schedule_days),
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurface
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        daysList.forEach { (dayNum, dayLabel) ->
+                            val selected = daysOfWeek.contains(dayNum)
+                            Box(
+                                modifier = Modifier
+                                    .size(48.dp)
+                                    .clickable(
+                                        interactionSource = remember { MutableInteractionSource() },
+                                        indication = null
+                                    ) {
+                                        daysOfWeek = if (selected) daysOfWeek - dayNum else daysOfWeek + dayNum
+                                        errorMessage = null
+                                    },
+                                contentAlignment = Alignment.Center
+                            ) {
                                 Surface(
                                     shape = CircleShape,
                                     color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
                                     border = if (selected) null else BorderStroke(1.dp, customColors.cardBorder),
-                                    modifier = Modifier
-                                        .size(38.dp)
-                                        .clickable {
-                                            daysOfWeek = if (selected) daysOfWeek - dayNum else daysOfWeek + dayNum
-                                            errorMessage = null
-                                        }
+                                    modifier = Modifier.size(40.dp)
                                 ) {
                                     Box(contentAlignment = Alignment.Center) {
                                         Text(
@@ -251,240 +475,295 @@ fun ScheduleEditorDialog(
                                 }
                             }
                         }
+                    }
 
-                        Spacer(modifier = Modifier.height(18.dp))
+                    Spacer(modifier = Modifier.height(16.dp))
+                }
 
-                        // Time Cards Row
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = stringResource(id = R.string.schedule_start_time).uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                OutlinedCard(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { openTimePicker(startTime) { startTime = it } },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, customColors.cardBorder)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccessTime,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = startTime.format(timeFormatter),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-
-                            Spacer(modifier = Modifier.width(12.dp))
-
-                            Column(modifier = Modifier.weight(1f)) {
-                                Text(
-                                    text = stringResource(id = R.string.schedule_end_time).uppercase(),
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                                )
-                                Spacer(modifier = Modifier.height(6.dp))
-                                OutlinedCard(
-                                    modifier = Modifier
-                                        .fillMaxWidth()
-                                        .clickable { openTimePicker(endTime) { endTime = it } },
-                                    shape = RoundedCornerShape(12.dp),
-                                    border = BorderStroke(1.dp, customColors.cardBorder)
-                                ) {
-                                    Row(
-                                        modifier = Modifier.padding(14.dp),
-                                        verticalAlignment = Alignment.CenterVertically
-                                    ) {
-                                        Icon(
-                                            imageVector = Icons.Default.AccessTime,
-                                            contentDescription = null,
-                                            tint = MaterialTheme.colorScheme.primary,
-                                            modifier = Modifier.size(18.dp)
-                                        )
-                                        Spacer(modifier = Modifier.width(8.dp))
-                                        Text(
-                                            text = endTime.format(timeFormatter),
-                                            style = MaterialTheme.typography.titleMedium,
-                                            fontWeight = FontWeight.Bold
-                                        )
-                                    }
-                                }
-                            }
-                        }
-
-                        if (isOvernight) {
-                            Spacer(modifier = Modifier.height(10.dp))
-                            Surface(
-                                shape = RoundedCornerShape(8.dp),
-                                color = MaterialTheme.colorScheme.surfaceContainerHigh
+                if (selectedType == ScheduleType.RECURRING) {
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(id = R.string.schedule_start_time),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { openTimePicker(startTime) { startTime = it } },
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, customColors.cardBorder)
                             ) {
                                 Row(
-                                    modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                    modifier = Modifier.padding(12.dp),
                                     verticalAlignment = Alignment.CenterVertically
                                 ) {
                                     Icon(
-                                        imageVector = Icons.Default.Nightlight,
+                                        imageVector = Icons.Default.AccessTime,
                                         contentDescription = null,
                                         tint = MaterialTheme.colorScheme.primary,
-                                        modifier = Modifier.size(14.dp)
+                                        modifier = Modifier.size(18.dp)
                                     )
-                                    Spacer(modifier = Modifier.width(6.dp))
+                                    Spacer(modifier = Modifier.width(8.dp))
                                     Text(
-                                        text = "Overnight window (ends the next day)",
-                                        style = MaterialTheme.typography.labelSmall,
-                                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                                        text = startTime.format(timeFormatter),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
+                                    )
+                                }
+                            }
+                        }
+
+                        Spacer(modifier = Modifier.width(12.dp))
+
+                        Column(modifier = Modifier.weight(1f)) {
+                            Text(
+                                text = stringResource(id = R.string.schedule_end_time),
+                                style = MaterialTheme.typography.labelMedium,
+                                fontWeight = FontWeight.SemiBold,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                            Spacer(modifier = Modifier.height(6.dp))
+                            OutlinedCard(
+                                modifier = Modifier
+                                    .fillMaxWidth()
+                                    .clickable { openTimePicker(endTime) { endTime = it } },
+                                shape = RoundedCornerShape(10.dp),
+                                border = BorderStroke(1.dp, customColors.cardBorder)
+                            ) {
+                                Row(
+                                    modifier = Modifier.padding(12.dp),
+                                    verticalAlignment = Alignment.CenterVertically
+                                ) {
+                                    Icon(
+                                        imageVector = Icons.Default.AccessTime,
+                                        contentDescription = null,
+                                        tint = MaterialTheme.colorScheme.primary,
+                                        modifier = Modifier.size(18.dp)
+                                    )
+                                    Spacer(modifier = Modifier.width(8.dp))
+                                    Text(
+                                        text = endTime.format(timeFormatter),
+                                        style = MaterialTheme.typography.titleMedium,
+                                        fontWeight = FontWeight.Bold
                                     )
                                 }
                             }
                         }
                     }
 
-                    ScheduleType.ONE_OFF -> {
-                        Text(
-                            text = "START DATE & TIME",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedCard(
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .clickable {
-                                        openDatePicker(startDateTime.toLocalDate()) {
-                                            startDateTime = it.atTime(startDateTime.toLocalTime())
-                                        }
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, customColors.cardBorder)
-                            ) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(startDateTime.toLocalDate().format(dateFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            OutlinedCard(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        openTimePicker(startDateTime.toLocalTime()) {
-                                            startDateTime = startDateTime.toLocalDate().atTime(it)
-                                        }
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, customColors.cardBorder)
-                            ) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(startDateTime.toLocalTime().format(timeFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-
-                        Spacer(modifier = Modifier.height(14.dp))
-
-                        Text(
-                            text = "END DATE & TIME",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(6.dp))
-                        Row(modifier = Modifier.fillMaxWidth()) {
-                            OutlinedCard(
-                                modifier = Modifier
-                                    .weight(1.3f)
-                                    .clickable {
-                                        openDatePicker(endDateTime.toLocalDate()) {
-                                            endDateTime = it.atTime(endDateTime.toLocalTime())
-                                        }
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, customColors.cardBorder)
-                            ) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(endDateTime.toLocalDate().format(dateFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(8.dp))
-                            OutlinedCard(
-                                modifier = Modifier
-                                    .weight(1f)
-                                    .clickable {
-                                        openTimePicker(endDateTime.toLocalTime()) {
-                                            endDateTime = endDateTime.toLocalDate().atTime(it)
-                                        }
-                                    },
-                                shape = RoundedCornerShape(12.dp),
-                                border = BorderStroke(1.dp, customColors.cardBorder)
-                            ) {
-                                Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
-                                    Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp))
-                                    Spacer(modifier = Modifier.width(6.dp))
-                                    Text(endDateTime.toLocalTime().format(timeFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
-                                }
-                            }
-                        }
-                    }
-
-                    ScheduleType.QUICK -> {
-                        Text(
-                            text = "PRESET DURATION",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Spacer(modifier = Modifier.height(8.dp))
-                        val presets = listOf(15, 30, 45, 60, 120)
-                        FlowRow(
-                            horizontalArrangement = Arrangement.spacedBy(8.dp),
-                            verticalArrangement = Arrangement.spacedBy(8.dp),
-                            modifier = Modifier.fillMaxWidth()
+                    if (isOvernight) {
+                        Spacer(modifier = Modifier.height(10.dp))
+                        Surface(
+                            shape = RoundedCornerShape(8.dp),
+                            color = MaterialTheme.colorScheme.surfaceContainerHigh
                         ) {
-                            presets.forEach { minutes ->
-                                FilterChip(
-                                    selected = durationMinutes == minutes,
-                                    onClick = { durationMinutes = minutes },
-                                    label = { Text("$minutes min") }
+                            Row(
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                                verticalAlignment = Alignment.CenterVertically
+                            ) {
+                                Icon(
+                                    imageVector = Icons.Default.Nightlight,
+                                    contentDescription = null,
+                                    tint = MaterialTheme.colorScheme.primary,
+                                    modifier = Modifier.size(14.dp)
+                                )
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(
+                                    text = "Overnight window: ends the following morning",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = MaterialTheme.colorScheme.onSurfaceVariant
                                 )
                             }
                         }
-                        Spacer(modifier = Modifier.height(12.dp))
-                        OutlinedTextField(
-                            value = durationMinutes.toString(),
-                            onValueChange = {
-                                durationMinutes = it.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
-                            },
-                            label = { Text("Duration (minutes)") },
-                            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                            singleLine = true,
-                            shape = RoundedCornerShape(12.dp),
-                            modifier = Modifier.fillMaxWidth()
-                        )
                     }
+                }
+
+                if (selectedType == ScheduleType.HOURLY) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.Timer,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Apps can be used up to $usageLimitMinutes minutes each hour. Once exceeded, apps are blocked until the top of the next hour.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (selectedType == ScheduleType.DAILY) {
+                    Surface(
+                        shape = RoundedCornerShape(10.dp),
+                        color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    ) {
+                        Row(
+                            modifier = Modifier.padding(12.dp),
+                            verticalAlignment = Alignment.CenterVertically
+                        ) {
+                            Icon(
+                                imageVector = Icons.Default.CalendarToday,
+                                contentDescription = null,
+                                tint = MaterialTheme.colorScheme.primary,
+                                modifier = Modifier.size(18.dp)
+                            )
+                            Spacer(modifier = Modifier.width(10.dp))
+                            Text(
+                                text = "Apps can be used up to $usageLimitMinutes minutes per day. Once exceeded, apps are blocked for the rest of the day and reset at midnight.",
+                                style = MaterialTheme.typography.bodySmall,
+                                color = MaterialTheme.colorScheme.onSurfaceVariant
+                            )
+                        }
+                    }
+                }
+
+                if (selectedType == ScheduleType.ONE_OFF) {
+                    Text(
+                        text = "Start Date and Time",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedCard(
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .clickable {
+                                    openDatePicker(startDateTime.toLocalDate()) {
+                                        startDateTime = it.atTime(startDateTime.toLocalTime())
+                                    }
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, customColors.cardBorder)
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(startDateTime.toLocalDate().format(dateFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OutlinedCard(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    openTimePicker(startDateTime.toLocalTime()) {
+                                        startDateTime = startDateTime.toLocalDate().atTime(it)
+                                    }
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, customColors.cardBorder)
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(startDateTime.toLocalTime().format(timeFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+
+                    Spacer(modifier = Modifier.height(14.dp))
+
+                    Text(
+                        text = "End Date and Time",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(6.dp))
+                    Row(modifier = Modifier.fillMaxWidth()) {
+                        OutlinedCard(
+                            modifier = Modifier
+                                .weight(1.3f)
+                                .clickable {
+                                    openDatePicker(endDateTime.toLocalDate()) {
+                                        endDateTime = it.atTime(endDateTime.toLocalTime())
+                                    }
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, customColors.cardBorder)
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.CalendarMonth, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(endDateTime.toLocalDate().format(dateFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                        Spacer(modifier = Modifier.width(8.dp))
+                        OutlinedCard(
+                            modifier = Modifier
+                                .weight(1f)
+                                .clickable {
+                                    openTimePicker(endDateTime.toLocalTime()) {
+                                        endDateTime = endDateTime.toLocalDate().atTime(it)
+                                    }
+                                },
+                            shape = RoundedCornerShape(10.dp),
+                            border = BorderStroke(1.dp, customColors.cardBorder)
+                        ) {
+                            Row(modifier = Modifier.padding(12.dp), verticalAlignment = Alignment.CenterVertically) {
+                                Icon(Icons.Default.AccessTime, contentDescription = null, modifier = Modifier.size(16.dp))
+                                Spacer(modifier = Modifier.width(6.dp))
+                                Text(endDateTime.toLocalTime().format(timeFormatter), style = MaterialTheme.typography.bodyMedium, fontWeight = FontWeight.SemiBold)
+                            }
+                        }
+                    }
+                }
+
+                if (selectedType == ScheduleType.QUICK) {
+                    Text(
+                        text = "Preset Duration",
+                        style = MaterialTheme.typography.labelMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    val quickPresets = listOf(15, 30, 45, 60, 120)
+                    FlowRow(
+                        horizontalArrangement = Arrangement.spacedBy(8.dp),
+                        verticalArrangement = Arrangement.spacedBy(8.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    ) {
+                        quickPresets.forEach { minutes ->
+                            FilterChip(
+                                selected = durationMinutes == minutes,
+                                onClick = { durationMinutes = minutes },
+                                label = { Text("$minutes min") },
+                                colors = FilterChipDefaults.filterChipColors(
+                                    selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                    selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                                )
+                            )
+                        }
+                    }
+                    Spacer(modifier = Modifier.height(12.dp))
+                    OutlinedTextField(
+                        value = durationMinutes.toString(),
+                        onValueChange = {
+                            durationMinutes = it.filter { char -> char.isDigit() }.toIntOrNull() ?: 0
+                        },
+                        label = { Text("Duration (minutes)") },
+                        keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+                        singleLine = true,
+                        shape = RoundedCornerShape(10.dp),
+                        modifier = Modifier.fillMaxWidth()
+                    )
                 }
 
                 errorMessage?.let { error ->
@@ -501,6 +780,11 @@ fun ScheduleEditorDialog(
         confirmButton = {
             Button(
                 onClick = {
+                    if (selectedMode == ScheduleMode.USAGE_LIMIT && usageLimitMinutes <= 0) {
+                        errorMessage = "Usage limit duration must be greater than 0"
+                        return@Button
+                    }
+
                     when (selectedType) {
                         ScheduleType.RECURRING -> {
                             if (daysOfWeek.isEmpty()) {
@@ -513,9 +797,40 @@ fun ScheduleEditorDialog(
                             }
                             val schedule = Schedule(
                                 type = ScheduleType.RECURRING,
+                                mode = selectedMode,
+                                usageLimitMinutes = if (selectedMode == ScheduleMode.USAGE_LIMIT) usageLimitMinutes else 0,
+                                limitScope = limitScope,
                                 daysOfWeek = daysOfWeek,
                                 startTime = startTime,
                                 endTime = endTime
+                            )
+                            onSave(schedule)
+                        }
+                        ScheduleType.HOURLY -> {
+                            if (daysOfWeek.isEmpty()) {
+                                errorMessage = "Please select at least one day"
+                                return@Button
+                            }
+                            val schedule = Schedule(
+                                type = ScheduleType.HOURLY,
+                                mode = selectedMode,
+                                usageLimitMinutes = if (selectedMode == ScheduleMode.USAGE_LIMIT) usageLimitMinutes else 0,
+                                limitScope = limitScope,
+                                daysOfWeek = daysOfWeek
+                            )
+                            onSave(schedule)
+                        }
+                        ScheduleType.DAILY -> {
+                            if (daysOfWeek.isEmpty()) {
+                                errorMessage = "Please select at least one day"
+                                return@Button
+                            }
+                            val schedule = Schedule(
+                                type = ScheduleType.DAILY,
+                                mode = selectedMode,
+                                usageLimitMinutes = if (selectedMode == ScheduleMode.USAGE_LIMIT) usageLimitMinutes else 0,
+                                limitScope = limitScope,
+                                daysOfWeek = daysOfWeek
                             )
                             onSave(schedule)
                         }
@@ -528,6 +843,9 @@ fun ScheduleEditorDialog(
                             }
                             val schedule = Schedule(
                                 type = ScheduleType.ONE_OFF,
+                                mode = selectedMode,
+                                usageLimitMinutes = if (selectedMode == ScheduleMode.USAGE_LIMIT) usageLimitMinutes else 0,
+                                limitScope = limitScope,
                                 startDateTime = startInstant,
                                 endDateTime = endInstant
                             )
@@ -540,6 +858,9 @@ fun ScheduleEditorDialog(
                             }
                             val schedule = Schedule(
                                 type = ScheduleType.QUICK,
+                                mode = selectedMode,
+                                usageLimitMinutes = if (selectedMode == ScheduleMode.USAGE_LIMIT) usageLimitMinutes else 0,
+                                limitScope = limitScope,
                                 durationMinutes = durationMinutes,
                                 quickStartInstant = Instant.now()
                             )
@@ -561,27 +882,53 @@ fun ScheduleEditorDialog(
 }
 
 fun formatScheduleSummary(schedule: Schedule): String {
-    return when (schedule.type) {
-        ScheduleType.RECURRING -> {
-            val dayNames = listOf(
-                1 to "Sun", 2 to "Mon", 3 to "Tue", 4 to "Wed", 5 to "Thu", 6 to "Fri", 7 to "Sat"
-            )
-            val selectedDays = dayNames.filter { schedule.daysOfWeek.contains(it.first) }.map { it.second }
-            val daysStr = if (selectedDays.isEmpty()) "No days" else selectedDays.joinToString(", ")
-            val startStr = schedule.startTime?.toString() ?: "--:--"
-            val endStr = schedule.endTime?.toString() ?: "--:--"
-            val overnightNote = if (schedule.startTime != null && schedule.endTime != null && !schedule.endTime.isAfter(schedule.startTime)) " (+1d)" else ""
-            "$daysStr $startStr - $endStr$overnightNote"
+    val dayNames = listOf(
+        1 to "Sun", 2 to "Mon", 3 to "Tue", 4 to "Wed", 5 to "Thu", 6 to "Fri", 7 to "Sat"
+    )
+    val selectedDays = dayNames.filter { schedule.daysOfWeek.contains(it.first) }.map { it.second }
+    val daysStr = if (selectedDays.isEmpty() || selectedDays.size == 7) "Every day" else selectedDays.joinToString(", ")
+
+    if (schedule.mode == ScheduleMode.USAGE_LIMIT) {
+        val limitStr = "${schedule.usageLimitMinutes}m limit"
+        val scopeStr = if (schedule.limitScope == LimitScope.COMBINED) " (combined)" else ""
+        return when (schedule.type) {
+            ScheduleType.HOURLY -> "$limitStr: Hourly ($daysStr)$scopeStr"
+            ScheduleType.DAILY -> "$limitStr: Daily ($daysStr)$scopeStr"
+            ScheduleType.RECURRING -> {
+                val startStr = schedule.startTime?.toString() ?: "--:--"
+                val endStr = schedule.endTime?.toString() ?: "--:--"
+                val overnightNote = if (schedule.startTime != null && schedule.endTime != null && !schedule.endTime.isAfter(schedule.startTime)) " (+1d)" else ""
+                "$limitStr: $daysStr $startStr - $endStr$overnightNote$scopeStr"
+            }
+            ScheduleType.ONE_OFF -> {
+                val zone = ZoneId.systemDefault()
+                val formatter = DateTimeFormatter.ofPattern("MMM dd HH:mm")
+                val start = schedule.startDateTime?.atZone(zone)?.format(formatter) ?: "--"
+                val end = schedule.endDateTime?.atZone(zone)?.format(formatter) ?: "--"
+                "$limitStr: $start - $end$scopeStr"
+            }
+            ScheduleType.QUICK -> "$limitStr: Quick block (${schedule.durationMinutes}m)"
         }
-        ScheduleType.ONE_OFF -> {
-            val zone = ZoneId.systemDefault()
-            val formatter = DateTimeFormatter.ofPattern("MMM dd HH:mm")
-            val start = schedule.startDateTime?.atZone(zone)?.format(formatter) ?: "--"
-            val end = schedule.endDateTime?.atZone(zone)?.format(formatter) ?: "--"
-            "One-off: $start - $end"
-        }
-        ScheduleType.QUICK -> {
-            "Quick block: ${schedule.durationMinutes} min"
+    } else {
+        return when (schedule.type) {
+            ScheduleType.RECURRING -> {
+                val startStr = schedule.startTime?.toString() ?: "--:--"
+                val endStr = schedule.endTime?.toString() ?: "--:--"
+                val overnightNote = if (schedule.startTime != null && schedule.endTime != null && !schedule.endTime.isAfter(schedule.startTime)) " (+1d)" else ""
+                "$daysStr $startStr - $endStr$overnightNote"
+            }
+            ScheduleType.HOURLY -> "Every hour ($daysStr)"
+            ScheduleType.DAILY -> "All day ($daysStr)"
+            ScheduleType.ONE_OFF -> {
+                val zone = ZoneId.systemDefault()
+                val formatter = DateTimeFormatter.ofPattern("MMM dd HH:mm")
+                val start = schedule.startDateTime?.atZone(zone)?.format(formatter) ?: "--"
+                val end = schedule.endDateTime?.atZone(zone)?.format(formatter) ?: "--"
+                "One-off: $start - $end"
+            }
+            ScheduleType.QUICK -> {
+                "Quick block: ${schedule.durationMinutes} min"
+            }
         }
     }
 }

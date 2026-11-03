@@ -7,15 +7,17 @@ import androidx.room.RoomDatabase
 import androidx.room.TypeConverters
 import androidx.room.migration.Migration
 import androidx.sqlite.db.SupportSQLiteDatabase
+import com.focusblock.domain.model.AppUsageRecord
 import com.focusblock.domain.model.BlockLog
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.ProfileConverters
 
-@Database(entities = [Profile::class, BlockLog::class], version = 2, exportSchema = true)
+@Database(entities = [Profile::class, BlockLog::class, AppUsageRecord::class], version = 3, exportSchema = true)
 @TypeConverters(ProfileConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
     abstract fun blockLogDao(): BlockLogDao
+    abstract fun appUsageDao(): AppUsageDao
 
     companion object {
         @Volatile private var INSTANCE: AppDatabase? = null
@@ -84,6 +86,26 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Upgrade from v2 to v3 introducing the app_usage_records table for usage-limit blocking.
+         */
+        val MIGRATION_2_3 = object : Migration(2, 3) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                db.execSQL(
+                    "CREATE TABLE IF NOT EXISTS `app_usage_records` (" +
+                        "`id` INTEGER PRIMARY KEY AUTOINCREMENT NOT NULL, " +
+                        "`profileId` INTEGER NOT NULL, " +
+                        "`packageName` TEXT NOT NULL, " +
+                        "`startTimeMs` INTEGER NOT NULL, " +
+                        "`endTimeMs` INTEGER NOT NULL, " +
+                        "`durationMs` INTEGER NOT NULL)"
+                )
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_usage_records_packageName_startTimeMs` ON `app_usage_records` (`packageName`, `startTimeMs`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_usage_records_profileId_startTimeMs` ON `app_usage_records` (`profileId`, `startTimeMs`)")
+                db.execSQL("CREATE INDEX IF NOT EXISTS `index_app_usage_records_endTimeMs` ON `app_usage_records` (`endTimeMs`)")
+            }
+        }
+
         private fun SupportSQLiteDatabase.tableExists(table: String): Boolean {
             query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { cursor ->
                 return cursor.moveToFirst()
@@ -106,7 +128,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "focus_block.db")
-                    .addMigrations(MIGRATION_1_2)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
                     .build()
                     .also { INSTANCE = it }
             }

@@ -1,0 +1,33 @@
+<resources>
+    <color name="m3_refresh_primary">#5FB8A3</color>
+    <color name="m3_refresh_primaryContainer">#12302A</color>
+    <color name="m3_refresh_secondary">#5FB8A3</color>
+    <color name="m3_refresh_secondaryContainer">#12302A</color>
+    <color name="m3_refresh_tertiary">#E8B45A</color>
+    <color name="m3_refresh_tertiaryContainer">#2B2110</color>
+    <color name="m3_refresh_error">#E8836F</color>
+    <color name="m3_refresh_background">#12110E</color>
+    <color name="m3_refresh_surface">#1B1A16</color>
+    <color name="m3_refresh_surfaceVariant">#242219</color>
+    <color name="m3_refresh_onPrimary">#06201B</color>
+    <color name="m3_refresh_onPrimaryContainer">#B7E6DA</color>
+    <color name="m3_refresh_onSecondary">#06201B</color>
+    <color name="m3_refresh_onSecondaryContainer">#B7E6DA</color>
+    <color name="m3_refresh_onTertiary">#2B2110</color>
+    <color name="m3_refresh_onTertiaryContainer">#F6D9A0</color>
+    <color name="m3_refresh_onError">#2A0E08</color>
+    <color name="m3_refresh_onBackground">#F2EFE7</color>
+    <color name="m3_refresh_onSurface">#F2EFE7</color>
+    <color name="m3_refresh_onSurfaceVariant">#A8A296</color>
+    <color name="m3_refresh_outline">#4A463B</color>
+    <color name="m3_refresh_outlineVariant">#2E2B23</color>
+    <color name="m3_refresh_inverseSurface">#F2EFE7</color>
+    <color name="m3_refresh_inverseOnSurface">#2E2B23</color>
+    <color name="m3_refresh_inversePrimary">#0D5F52</color>
+    <color name="m3_refresh_surfaceContainerLowest">#0D0C0A</color>
+    <color name="m3_refresh_surfaceContainerLow">#161511</color>
+    <color name="m3_refresh_surfaceContainer">#1B1A16</color>
+    <color name="m3_refresh_surfaceContainerHigh">#242219</color>
+    <color name="m3_refresh_surfaceContainerHighest">#2E2B23</color>
+    <color name="m3_refresh_scrimBackground">#0D0C0A</color>
+</resources>

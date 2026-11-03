@@ -2,8 +2,10 @@ package com.focusblock.service.accessibility
 
 import android.accessibilityservice.AccessibilityService
 import android.accessibilityservice.AccessibilityServiceInfo
+import android.content.BroadcastReceiver
 import android.content.Context
 import android.content.Intent
+import android.content.IntentFilter
 import android.content.pm.PackageManager
 import android.provider.Settings
 import android.telecom.TelecomManager
@@ -17,9 +19,11 @@ import com.focusblock.domain.model.ActiveProfileInfo
 import com.focusblock.domain.model.BlockLog
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.ScheduleEngine
+import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.repository.BlockLogRepository
 import com.focusblock.domain.repository.ProfileRepository
+import com.focusblock.domain.usecase.AppUsageTracker
 import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.StrictProtectionEvaluator
 import com.focusblock.domain.usecase.TrustedClock
@@ -54,6 +58,9 @@ class FocusBlockAccessibilityService : AccessibilityService() {
     @Inject
     lateinit var trustedClock: TrustedClock
 
+    @Inject
+    lateinit var appUsageTracker: AppUsageTracker
+
     private val serviceScope = CoroutineScope(Dispatchers.Main.immediate + SupervisorJob())
 
     /** Tamper-resistant "now", refreshed off the elapsedRealtime anchor. */
@@ -71,9 +78,21 @@ class FocusBlockAccessibilityService : AccessibilityService() {
 
     private var isObserving = false
 
+    private val screenReceiver = object : BroadcastReceiver() {
+        override fun onReceive(context: Context?, intent: Intent?) {
+            if (intent?.action == Intent.ACTION_SCREEN_OFF) {
+                serviceScope.launch {
+                    appUsageTracker.onPackageBackground()
+                }
+            }
+        }
+    }
+
     override fun onCreate() {
         super.onCreate()
         Log.d("FocusBlockA11y", "onCreate called")
+        val filter = IntentFilter(Intent.ACTION_SCREEN_OFF)
+        registerReceiver(screenReceiver, filter)
         startObservers()
     }
 
@@ -127,6 +146,37 @@ class FocusBlockAccessibilityService : AccessibilityService() {
                 delay(1_000)
             }
         }
+
+        // Real-time foreground monitor for usage-limit enforcement while app is actively running
+        serviceScope.launch {
+            var flushCounter = 0
+            while (isActive) {
+                delay(1_000)
+                val currentPkg = appUsageTracker.currentPackage
+                if (currentPkg != null && !isCriticalSystemApp(currentPkg)) {
+                    val now = trustedNow
+                    val activeProfiles = ScheduleEngine.activeProfiles(cachedProfiles, now)
+                    val status = appUsageTracker.evaluateUsageLimit(currentPkg, activeProfiles, now)
+                    if (status != null && status.isExceeded) {
+                        appUsageTracker.onPackageBackground()
+                        val timeRemainingMs = (status.resetInstant.toEpochMilli() - now.toEpochMilli()).coerceAtLeast(0L)
+                        logBlockEvent(currentPkg, getAppLabel(currentPkg), status.profile.id)
+                        triggerBlockScreen(
+                            appName = getAppLabel(currentPkg),
+                            profileName = status.profile.name,
+                            timeRemainingMs = timeRemainingMs,
+                            isStrict = status.profile.strict,
+                            blockReason = "Usage limit reached (${status.schedule.usageLimitMinutes} min limit used)"
+                        )
+                    }
+                }
+                flushCounter++
+                if (flushCounter >= 10) {
+                    flushCounter = 0
+                    appUsageTracker.flushSessionProgress()
+                }
+            }
+        }
     }
 
     override fun onAccessibilityEvent(event: AccessibilityEvent) {
@@ -138,6 +188,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         // Ignore FocusBlock itself and critical phone infrastructure (launcher, keyboard, dialer, systemui)
         if (isCriticalSystemApp(pkg)) {
             Log.d("FocusBlockA11y", "Ignoring critical system app: $pkg")
+            serviceScope.launch { appUsageTracker.onPackageBackground() }
             return
         }
 
@@ -156,6 +207,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
                 blockBrowsers = cachedBlockBrowsers
             )
         ) {
+            serviceScope.launch { appUsageTracker.onPackageBackground() }
             val appLabel = when {
                 strictEvaluator.isInstallerApp(pkg) -> "Package Installer"
                 strictEvaluator.isBrowserApp(pkg) -> "Web Browser"
@@ -171,20 +223,58 @@ class FocusBlockAccessibilityService : AccessibilityService() {
             return
         }
 
-        // 2. Regular blocked app check
-        val blockedProfile = activeProfiles.firstOrNull { it.profile.blockedApps.contains(pkg) }
-        if (blockedProfile != null) {
-            val timeRemainingMs = blockedProfile.endInstant.toEpochMilli() - now.toEpochMilli()
+        // 2. Regular Static Blocked App Check (Immediate full block)
+        val staticBlockedProfile = activeProfiles.firstOrNull {
+            it.schedule.mode == ScheduleMode.BLOCK && it.profile.blockedApps.contains(pkg)
+        }
+        if (staticBlockedProfile != null) {
+            val timeRemainingMs = staticBlockedProfile.endInstant.toEpochMilli() - now.toEpochMilli()
             if (timeRemainingMs > 0 && serviceScope.isActive) {
+                serviceScope.launch { appUsageTracker.onPackageBackground() }
                 val appLabel = getAppLabel(pkg)
-                logBlockEvent(pkg = pkg, appName = appLabel, profileId = blockedProfile.profile.id)
+                logBlockEvent(pkg = pkg, appName = appLabel, profileId = staticBlockedProfile.profile.id)
                 triggerBlockScreen(
                     appName = appLabel,
-                    profileName = blockedProfile.profile.name,
+                    profileName = staticBlockedProfile.profile.name,
                     timeRemainingMs = timeRemainingMs,
-                    isStrict = blockedProfile.profile.strict
+                    isStrict = staticBlockedProfile.profile.strict
                 )
+                return
             }
+        }
+
+        // 3. Dynamic Usage-Limit Blocked App Check (Budgeted usage block)
+        val usageLimitProfile = activeProfiles.firstOrNull {
+            it.schedule.mode == ScheduleMode.USAGE_LIMIT &&
+                it.schedule.usageLimitMinutes > 0 &&
+                it.profile.blockedApps.contains(pkg)
+        }
+        if (usageLimitProfile != null) {
+            serviceScope.launch {
+                val status = appUsageTracker.evaluateUsageLimit(pkg, activeProfiles, now)
+                if (status != null && status.isExceeded) {
+                    appUsageTracker.onPackageBackground()
+                    val timeRemainingMs = (status.resetInstant.toEpochMilli() - now.toEpochMilli()).coerceAtLeast(0L)
+                    val appLabel = getAppLabel(pkg)
+                    logBlockEvent(pkg = pkg, appName = appLabel, profileId = status.profile.id)
+                    triggerBlockScreen(
+                        appName = appLabel,
+                        profileName = status.profile.name,
+                        timeRemainingMs = timeRemainingMs,
+                        isStrict = status.profile.strict,
+                        blockReason = "Usage limit reached (${status.schedule.usageLimitMinutes} min limit used)"
+                    )
+                } else {
+                    // Quota still available: track foreground usage session
+                    appUsageTracker.onPackageForeground(pkg, usageLimitProfile.profile.id)
+                }
+            }
+            return
+        }
+
+        // If package is not governed by any active restriction, release background tracker
+        serviceScope.launch {
+            appUsageTracker.onPackageBackground()
         }
     }
 
@@ -243,9 +333,10 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         appName: String,
         profileName: String,
         timeRemainingMs: Long,
-        isStrict: Boolean
+        isStrict: Boolean,
+        blockReason: String? = null
     ) {
-        Log.d("FocusBlockA11y", "triggerBlockScreen: appName=$appName, profile=$profileName, isStrict=$isStrict")
+        Log.d("FocusBlockA11y", "triggerBlockScreen: appName=$appName, profile=$profileName, isStrict=$isStrict, reason=$blockReason")
         if (!serviceScope.isActive) return
 
         val intent = Intent(this, BlockScreenActivity::class.java).apply {
@@ -254,6 +345,9 @@ class FocusBlockAccessibilityService : AccessibilityService() {
             putExtra(BlockScreenActivity.EXTRA_PROFILE_NAME, profileName)
             putExtra(BlockScreenActivity.EXTRA_TIME_REMAINING_MS, timeRemainingMs)
             putExtra(BlockScreenActivity.EXTRA_IS_STRICT, isStrict)
+            if (blockReason != null) {
+                putExtra(BlockScreenActivity.EXTRA_BLOCK_REASON, blockReason)
+            }
         }
         try {
             startActivity(intent)
@@ -267,7 +361,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         // Never block FocusBlock itself
         if (pkg == packageName) return true
 
-        // Settings and Installers are NEVER critical system apps — they must be evaluated by tamper protection
+        // Settings and installer packages must be evaluated by tamper protection rather than whitelisted
         if (strictEvaluator.isSettingsOrSecurityApp(pkg) || strictEvaluator.isInstallerApp(pkg)) {
             return false
         }
@@ -325,6 +419,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
 
     override fun onDestroy() {
         super.onDestroy()
+        runCatching { unregisterReceiver(screenReceiver) }
         serviceScope.cancel()
     }
 }

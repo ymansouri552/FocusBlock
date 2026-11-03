@@ -1,13 +1,9 @@
 package com.focusblock.ui.home
 
-import androidx.compose.animation.AnimatedVisibility
-import androidx.compose.animation.animateColorAsState
-import androidx.compose.animation.core.tween
-import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
-import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
@@ -17,44 +13,30 @@ import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
+import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
-import androidx.compose.foundation.lazy.LazyRow
-import androidx.compose.foundation.lazy.items
-import androidx.compose.foundation.shape.CircleShape
+import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Bolt
-import androidx.compose.material.icons.filled.CheckCircle
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.NotificationsActive
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Security
 import androidx.compose.material.icons.filled.Settings
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.Warning
-import androidx.compose.material.icons.outlined.Timer
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
-import androidx.compose.material3.ButtonDefaults
-import androidx.compose.material3.Card
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.ExtendedFloatingActionButton
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
@@ -72,14 +54,12 @@ import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
-import androidx.compose.ui.graphics.Brush
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
-import androidx.compose.ui.text.font.FontFamily
 import androidx.compose.ui.text.font.FontWeight
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
-import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -88,12 +68,14 @@ import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focusblock.R
 import com.focusblock.domain.model.ActiveProfileInfo
 import com.focusblock.domain.model.Profile
-import com.focusblock.domain.usecase.SystemPermissionsState
 import com.focusblock.domain.model.ScheduleEngine
+import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.usecase.StrictModeRules
+import com.focusblock.domain.usecase.SystemPermissionsState
 import com.focusblock.ui.profile.formatScheduleSummary
 import com.focusblock.ui.theme.LocalCustomColors
+import com.focusblock.ui.theme.tabular
 import kotlinx.coroutines.delay
 import java.time.Duration
 import java.time.Instant
@@ -111,14 +93,26 @@ fun HomeScreen(
     val blockedPackages by viewModel.blockedPackages.collectAsStateWithLifecycle()
     val strictModeState by viewModel.strictModeState.collectAsStateWithLifecycle()
     val permissionsState by viewModel.permissionsState.collectAsStateWithLifecycle()
-    val customColors = LocalCustomColors.current
     val context = LocalContext.current
 
     var now by remember { mutableStateOf(Instant.now()) }
-    LaunchedEffect(Unit) {
-        while (true) {
-            now = viewModel.now()
-            delay(1000)
+
+    // Tick every second ONLY while an active session exists; otherwise update once a minute
+    val isAnySessionActive = remember(profiles, strictModeState, now) {
+        strictModeState.isEffectivelyActive(now) || ScheduleEngine.activeProfiles(profiles, now).isNotEmpty()
+    }
+
+    LaunchedEffect(isAnySessionActive) {
+        if (isAnySessionActive) {
+            while (true) {
+                delay(1000)
+                now = viewModel.now()
+            }
+        } else {
+            while (true) {
+                delay(60_000)
+                now = viewModel.now()
+            }
         }
     }
 
@@ -156,30 +150,10 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Shield,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(12.dp))
-                        Column {
-                            Text(
-                                text = stringResource(id = R.string.app_name),
-                                style = MaterialTheme.typography.titleLarge,
-                                fontWeight = FontWeight.Bold
-                            )
-                        }
-                    }
+                    Text(
+                        text = stringResource(id = R.string.app_name),
+                        style = MaterialTheme.typography.titleLarge
+                    )
                 },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
@@ -190,18 +164,8 @@ fun HomeScreen(
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = MaterialTheme.colorScheme.background
                 )
-            )
-        },
-        floatingActionButton = {
-            ExtendedFloatingActionButton(
-                onClick = onAddProfile,
-                icon = { Icon(Icons.Default.Add, contentDescription = null) },
-                text = { Text(stringResource(id = R.string.home_add_profile), fontWeight = FontWeight.SemiBold) },
-                containerColor = MaterialTheme.colorScheme.primary,
-                contentColor = MaterialTheme.colorScheme.onPrimary,
-                shape = RoundedCornerShape(16.dp)
             )
         },
         snackbarHost = { SnackbarHost(snackbarHostState) }
@@ -210,49 +174,55 @@ fun HomeScreen(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
-            verticalArrangement = Arrangement.spacedBy(16.dp)
+            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp),
+            verticalArrangement = Arrangement.spacedBy(24.dp)
         ) {
-            // ── System Permissions & Health Status ────────────────────────────
+            // Prime slot: Focus Status block owns the top of the screen (no card chrome)
             item {
-                PermissionsHealthCard(
-                    permissionsState = permissionsState,
-                    onFixAccessibility = {
-                        try {
-                            context.startActivity(viewModel.permissionChecker.getAccessibilitySettingsIntent())
-                        } catch (e: Exception) {
-                            // ignore
-                        }
-                    },
-                    onFixAdmin = {
-                        try {
-                            context.startActivity(viewModel.permissionChecker.getDeviceAdminRequestIntent())
-                        } catch (e: Exception) {
-                            // ignore
-                        }
-                    },
-                    onFixBattery = {
-                        viewModel.permissionChecker.launchBatteryOptimizationSettings(context)
-                    }
-                )
-            }
-
-            // ── Hero Focus Dashboard ─────────────────────────────────────────
-            item {
-                FocusHeroCard(
+                FocusStatusBlock(
                     activeProfiles = activeProfiles,
                     now = now,
-                    blockedPackagesCount = blockedPackages.size,
-                    onStartQuickBlock = {
-                        preselectedQuickDuration = 30
-                        showQuickBlockDialog = true
-                    }
+                    blockedPackagesCount = blockedPackages.size
                 )
             }
 
-            // ── Independent Strict Mode Card ─────────────────────────────────
+            // Collapsed single-line alert under status ONLY when something is broken; nothing when green
+            if (permissionsState.hasAnyWarning) {
+                item {
+                    PermissionsWarningLine(
+                        permissionsState = permissionsState,
+                        onFix = {
+                            if (!permissionsState.isAccessibilityGranted) {
+                                runCatching {
+                                    context.startActivity(viewModel.permissionChecker.getAccessibilitySettingsIntent())
+                                }
+                            } else if (!permissionsState.isDeviceAdminGranted) {
+                                runCatching {
+                                    context.startActivity(viewModel.permissionChecker.getDeviceAdminRequestIntent())
+                                }
+                            } else {
+                                viewModel.permissionChecker.launchBatteryOptimizationSettings(context)
+                            }
+                        }
+                    )
+                }
+            }
+
+            // Quick durations: plain row of text buttons
+            if (profiles.isNotEmpty()) {
+                item {
+                    QuickStartBar(
+                        onSelectDuration = { duration ->
+                            preselectedQuickDuration = duration
+                            showQuickBlockDialog = true
+                        }
+                    )
+                }
+            }
+
+            // Strict Mode: The single allowed bordered card when locked; clean text row when idle
             item {
-                IndependentStrictModeCard(
+                StrictModeSection(
                     strictState = strictModeState,
                     now = now,
                     onActivate = { showStrictTermsDialog = true },
@@ -260,73 +230,41 @@ fun HomeScreen(
                 )
             }
 
-            // ── Quick Block Presets Bar ──────────────────────────────────────
+            // Profiles Header
             item {
-                QuickBlockPresetsBar(
-                    onSelectDuration = { duration ->
-                        preselectedQuickDuration = duration
-                        showQuickBlockDialog = true
-                    }
+                ProfilesHeader(
+                    count = profiles.size,
+                    onAddProfile = onAddProfile
                 )
             }
 
-            // ── Profiles Section Header ─────────────────────────────────────
-            item {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Text(
-                            text = stringResource(id = R.string.home_profiles).uppercase(),
-                            style = MaterialTheme.typography.labelLarge,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            letterSpacing = 1.sp
-                        )
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh
-                        ) {
-                            Text(
-                                text = "${profiles.size}",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
-                            )
-                        }
-                    }
-                }
-            }
-
-            // ── Profiles List / Empty State ─────────────────────────────────
+            // Profiles List: hairline-separated rows
             if (profiles.isEmpty()) {
                 item {
-                    EmptyProfilesCard(onCreateProfile = onAddProfile)
+                    EmptyProfilesState(onCreateProfile = onAddProfile)
                 }
             } else {
-                items(profiles, key = { it.id }) { profile ->
+                itemsIndexed(profiles, key = { _, profile -> profile.id }) { index, profile ->
                     val isActiveNow = ScheduleEngine.isActive(profile, now)
                     val isStrictActive = StrictModeRules.isStrictActive(profile, now)
                     val activeInfo = ScheduleEngine.activeProfile(profile, now)
                     val remainingMs = activeInfo?.let { Duration.between(now, it.endInstant).toMillis() }
 
-                    ProfileCard(
+                    ProfileRow(
                         profile = profile,
                         isActiveNow = isActiveNow,
                         isStrictActive = isStrictActive,
+                        activeInfo = activeInfo,
                         remainingMs = remainingMs,
+                        showDivider = index < profiles.lastIndex,
                         onEdit = { onEditProfile(profile.id) },
                         onToggle = { enabled -> viewModel.toggleProfile(profile.id, enabled) }
                     )
                 }
             }
 
-            // Bottom spacer for FAB
             item {
-                Spacer(modifier = Modifier.height(72.dp))
+                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
@@ -354,10 +292,135 @@ fun HomeScreen(
     }
 }
 
-// ── Independent Strict Mode Card ─────────────────────────────────────────────
+@Composable
+private fun FocusStatusBlock(
+    activeProfiles: List<ActiveProfileInfo>,
+    now: Instant,
+    blockedPackagesCount: Int
+) {
+    val customColors = LocalCustomColors.current
+    val hasActive = activeProfiles.isNotEmpty()
+    val isAnyStrict = StrictModeRules.independentState.isEffectivelyActive(now) ||
+        activeProfiles.any { it.profile.strict }
+
+    if (hasActive) {
+        val nextEnding = activeProfiles.minByOrNull { it.endInstant }
+        val remainingMs = nextEnding?.let { Duration.between(now, it.endInstant).toMillis() } ?: 0L
+        val stateColor = if (isAnyStrict) customColors.strictAmber else customColors.positive
+
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = if (isAnyStrict) "Strict Mode session" else "Focus session active",
+                style = MaterialTheme.typography.titleSmall,
+                fontWeight = FontWeight.SemiBold,
+                color = stateColor
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = formatTimer(remainingMs),
+                style = MaterialTheme.typography.displayLarge.tabular(),
+                fontWeight = FontWeight.Bold,
+                color = stateColor,
+                maxLines = 1
+            )
+            Spacer(modifier = Modifier.height(10.dp))
+            Text(
+                text = activeProfiles.joinToString(", ") { it.profile.name },
+                style = MaterialTheme.typography.bodyLarge,
+                fontWeight = FontWeight.Medium,
+                color = MaterialTheme.colorScheme.onBackground,
+                maxLines = 2,
+                overflow = TextOverflow.Ellipsis
+            )
+            Spacer(modifier = Modifier.height(2.dp))
+            Text(
+                text = "$blockedPackagesCount apps blocked",
+                style = MaterialTheme.typography.bodySmall,
+                color = customColors.subtleText
+            )
+        }
+    } else {
+        Column(modifier = Modifier.fillMaxWidth()) {
+            Text(
+                text = "Nothing is blocked",
+                style = MaterialTheme.typography.headlineMedium,
+                fontWeight = FontWeight.Bold,
+                color = MaterialTheme.colorScheme.onBackground
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Start a timer or enable a profile to begin.",
+                style = MaterialTheme.typography.bodyMedium,
+                color = customColors.subtleText
+            )
+        }
+    }
+}
 
 @Composable
-private fun IndependentStrictModeCard(
+private fun PermissionsWarningLine(
+    permissionsState: SystemPermissionsState,
+    onFix: () -> Unit
+) {
+    val message = when {
+        !permissionsState.isAccessibilityGranted -> "Accessibility is off · Tap to enable"
+        !permissionsState.isDeviceAdminGranted -> "Device admin is inactive · Tap to activate"
+        else -> "Battery optimization active · Tap to exempt"
+    }
+
+    Row(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onFix)
+            .padding(vertical = 4.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        Icon(
+            imageVector = Icons.Default.Warning,
+            contentDescription = null,
+            tint = MaterialTheme.colorScheme.error,
+            modifier = Modifier.size(16.dp)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = message,
+            style = MaterialTheme.typography.bodySmall,
+            fontWeight = FontWeight.Medium,
+            color = MaterialTheme.colorScheme.error,
+            modifier = Modifier.weight(1f)
+        )
+    }
+}
+
+@Composable
+private fun QuickStartBar(
+    onSelectDuration: (Int) -> Unit
+) {
+    val presets = listOf(15, 30, 45, 60, 120)
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
+        presets.forEach { minutes ->
+            TextButton(
+                onClick = { onSelectDuration(minutes) },
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = formatDurationShort(minutes),
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.primary
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun StrictModeSection(
     strictState: StrictModeState,
     now: Instant,
     onActivate: () -> Unit,
@@ -365,673 +428,240 @@ private fun IndependentStrictModeCard(
 ) {
     val customColors = LocalCustomColors.current
     val isArmed = strictState.isEffectivelyActive(now)
-    val remainingMs = strictState.remainingMs(now)
+    val termExpired = strictState.isArmed && !isArmed
 
-    if (isArmed) {
-        val gradientBrush = Brush.linearGradient(
-            colors = listOf(
-                Color(0xFF381A00),
-                Color(0xFF261200),
-                Color(0xFF140900)
-            )
-        )
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(20.dp),
-            colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-            border = BorderStroke(1.5.dp, customColors.strictAmber.copy(alpha = 0.8f))
-        ) {
-            Box(
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .background(gradientBrush)
-                    .padding(18.dp)
-            ) {
-                Column {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Surface(
-                                shape = RoundedCornerShape(10.dp),
-                                color = customColors.strictContainer,
-                                modifier = Modifier.size(36.dp)
-                            ) {
-                                Box(contentAlignment = Alignment.Center) {
-                                    Icon(
-                                        imageVector = Icons.Default.Security,
-                                        contentDescription = null,
-                                        tint = customColors.strictAmber,
-                                        modifier = Modifier.size(20.dp)
-                                    )
-                                }
-                            }
-                            Spacer(modifier = Modifier.width(10.dp))
-                            Column {
-                                Text(
-                                    text = "Strict Mode",
-                                    style = MaterialTheme.typography.titleMedium,
-                                    fontWeight = FontWeight.Bold,
-                                    color = Color.White
-                                )
-                                Text(
-                                    text = "Term: ${strictState.termType.label}",
-                                    style = MaterialTheme.typography.bodySmall,
-                                    color = customColors.strictAmber,
-                                    fontWeight = FontWeight.SemiBold
-                                )
-                            }
-                        }
+    if (isArmed || termExpired) {
+        val remainingMs = strictState.remainingMs(now)
+        val shape = RoundedCornerShape(14.dp)
 
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = customColors.strictContainer,
-                            border = BorderStroke(1.dp, customColors.strictAmber.copy(alpha = 0.6f))
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = Icons.Default.Lock,
-                                    contentDescription = null,
-                                    tint = customColors.strictAmber,
-                                    modifier = Modifier.size(12.dp)
-                                )
-                                Spacer(modifier = Modifier.width(4.dp))
-                                Text(
-                                    text = "ARMED",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = customColors.strictOnContainer,
-                                    fontSize = 10.sp
-                                )
-                            }
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(14.dp))
-
-                    if (remainingMs != null) {
-                        Text(
-                            text = formatTimer(remainingMs),
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
-                            ),
-                            color = customColors.strictAmber
-                        )
-                    } else {
-                        Text(
-                            text = "ONGOING",
-                            style = MaterialTheme.typography.headlineLarge.copy(
-                                fontFamily = FontFamily.Monospace,
-                                fontWeight = FontWeight.Bold,
-                                letterSpacing = 2.sp
-                            ),
-                            color = customColors.strictAmber
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Protection is active 24/7 across all profiles. Turning off profiles, deletion, and uninstallation are locked.",
-                        style = MaterialTheme.typography.bodySmall,
-                        color = Color.White.copy(alpha = 0.8f)
-                    )
-
-                    if (remainingMs != null && remainingMs <= 0) {
-                        Spacer(modifier = Modifier.height(12.dp))
-                        Button(
-                            onClick = onDisarm,
-                            modifier = Modifier.fillMaxWidth(),
-                            colors = ButtonDefaults.buttonColors(
-                                containerColor = customColors.activeGreen,
-                                contentColor = Color.White
-                            ),
-                            shape = RoundedCornerShape(10.dp)
-                        ) {
-                            Text("Term Complete · Disarm Strict Mode", fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-        }
-    } else {
-        // Disarmed State Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.surface
-            ),
-            border = BorderStroke(1.dp, customColors.cardBorder)
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
-                ) {
-                    Row(verticalAlignment = Alignment.CenterVertically) {
-                        Surface(
-                            shape = RoundedCornerShape(10.dp),
-                            color = MaterialTheme.colorScheme.surfaceContainerHigh,
-                            modifier = Modifier.size(36.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Default.Security,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.onSurfaceVariant,
-                                    modifier = Modifier.size(20.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(10.dp))
-                        Column {
-                            Text(
-                                text = "Strict Mode",
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.Bold
-                            )
-                            Text(
-                                text = "Independent Protection",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ) {
-                        Text(
-                            text = "DISARMED",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp),
-                            fontSize = 10.sp
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                Text(
-                    text = "Lock all profiles and prevent tampering across all schedules with custom commitment terms (4h, 24h, 7d, etc.).",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
-                )
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                Button(
-                    onClick = onActivate,
-                    modifier = Modifier.fillMaxWidth(),
-                    colors = ButtonDefaults.buttonColors(
-                        containerColor = customColors.strictContainer,
-                        contentColor = customColors.strictAmber
-                    ),
-                    shape = RoundedCornerShape(10.dp)
-                ) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        modifier = Modifier.size(16.dp),
-                        tint = customColors.strictAmber
-                    )
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = "Activate Strict Mode",
-                        fontWeight = FontWeight.Bold,
-                        color = customColors.strictAmber
-                    )
-                }
-            }
-        }
-    }
-}
-
-// ── Hero Focus Dashboard Card ────────────────────────────────────────────────
-
-@Composable
-private fun FocusHeroCard(
-    activeProfiles: List<ActiveProfileInfo>,
-    now: Instant,
-    blockedPackagesCount: Int,
-    onStartQuickBlock: () -> Unit
-) {
-    val customColors = LocalCustomColors.current
-    val hasActive = activeProfiles.isNotEmpty()
-    val isAnyStrict = StrictModeRules.independentState.isEffectivelyActive(now) || activeProfiles.any { it.profile.strict }
-
-    val nextEnding = activeProfiles.minByOrNull { it.endInstant }
-    val remainingMs = nextEnding?.let { Duration.between(now, it.endInstant).toMillis() } ?: 0L
-
-    val gradientBrush = if (hasActive) {
-        if (isAnyStrict) {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF381A00),
-                    Color(0xFF1E1405),
-                    Color(0xFF140D00)
-                )
-            )
-        } else {
-            Brush.linearGradient(
-                colors = listOf(
-                    Color(0xFF1E1B4B),
-                    Color(0xFF0F172A),
-                    Color(0xFF0A0F1D)
-                )
-            )
-        }
-    } else {
-        Brush.linearGradient(
-            colors = listOf(
-                MaterialTheme.colorScheme.surfaceContainer,
-                MaterialTheme.colorScheme.surfaceContainerLow
-            )
-        )
-    }
-
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(20.dp),
-        colors = CardDefaults.cardColors(containerColor = Color.Transparent),
-        border = BorderStroke(
-            1.dp,
-            if (hasActive) {
-                if (isAnyStrict) customColors.strictAmber.copy(alpha = 0.5f)
-                else MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            } else {
-                customColors.cardBorder
-            }
-        )
-    ) {
-        Box(
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .background(gradientBrush)
-                .padding(20.dp)
+                .clip(shape)
+                .background(customColors.strictContainer)
+                .border(1.dp, customColors.strictAmber.copy(alpha = 0.7f), shape)
+                .padding(16.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Column {
-                if (hasActive) {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically,
-                        horizontalArrangement = Arrangement.SpaceBetween
-                    ) {
-                        Surface(
-                            shape = RoundedCornerShape(8.dp),
-                            color = if (isAnyStrict) customColors.strictContainer else customColors.activeContainer
-                        ) {
-                            Row(
-                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp),
-                                verticalAlignment = Alignment.CenterVertically
-                            ) {
-                                Icon(
-                                    imageVector = if (isAnyStrict) Icons.Default.Security else Icons.Default.CheckCircle,
-                                    contentDescription = null,
-                                    tint = if (isAnyStrict) customColors.strictAmber else customColors.activeGreen,
-                                    modifier = Modifier.size(14.dp)
-                                )
-                                Spacer(modifier = Modifier.width(6.dp))
-                                Text(
-                                    text = if (isAnyStrict) "STRICT FOCUS ACTIVE" else "SESSION ACTIVE",
-                                    style = MaterialTheme.typography.labelSmall,
-                                    fontWeight = FontWeight.Bold,
-                                    color = if (isAnyStrict) customColors.strictOnContainer else customColors.activeOnContainer
-                                )
-                            }
-                        }
-
-                        Text(
-                            text = "$blockedPackagesCount apps blocked",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = Color.White.copy(alpha = 0.7f)
-                        )
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Text(
-                        text = formatTimer(remainingMs),
-                        style = MaterialTheme.typography.displayMedium.copy(
-                            fontFamily = FontFamily.Monospace,
-                            fontWeight = FontWeight.Bold,
-                            letterSpacing = 2.sp
-                        ),
-                        color = Color.White
-                    )
-
-                    Spacer(modifier = Modifier.height(6.dp))
-
-                    Text(
-                        text = "Active Profiles: " + activeProfiles.joinToString(", ") { it.profile.name },
-                        style = MaterialTheme.typography.bodyMedium,
-                        color = Color.White.copy(alpha = 0.85f),
-                        fontWeight = FontWeight.Medium
-                    )
-                } else {
-                    Row(
-                        modifier = Modifier.fillMaxWidth(),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Surface(
-                            shape = CircleShape,
-                            color = MaterialTheme.colorScheme.primaryContainer,
-                            modifier = Modifier.size(44.dp)
-                        ) {
-                            Box(contentAlignment = Alignment.Center) {
-                                Icon(
-                                    imageVector = Icons.Outlined.Timer,
-                                    contentDescription = null,
-                                    tint = MaterialTheme.colorScheme.primary,
-                                    modifier = Modifier.size(24.dp)
-                                )
-                            }
-                        }
-                        Spacer(modifier = Modifier.width(16.dp))
-                        Column(modifier = Modifier.weight(1f)) {
-                            Text(
-                                text = stringResource(id = R.string.home_session_idle),
-                                style = MaterialTheme.typography.titleMedium,
-                                fontWeight = FontWeight.SemiBold
-                            )
-                            Text(
-                                text = "Ready to focus? Start a session or enable a schedule.",
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.height(16.dp))
-
-                    Button(
-                        onClick = onStartQuickBlock,
-                        modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
-                    ) {
-                        Icon(Icons.Default.Bolt, contentDescription = null, modifier = Modifier.size(18.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text("Start Quick Block", fontWeight = FontWeight.SemiBold)
-                    }
+            Icon(
+                imageVector = Icons.Default.Lock,
+                contentDescription = null,
+                tint = customColors.strictAmber,
+                modifier = Modifier.size(18.dp)
+            )
+            Spacer(modifier = Modifier.width(10.dp))
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Strict Mode",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = customColors.strictOnContainer
+                )
+                Text(
+                    text = "${strictState.termType.label} commitment. All profiles are locked.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = customColors.strictOnContainer
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            if (termExpired) {
+                TextButton(onClick = onDisarm) {
+                    Text("Disarm", fontWeight = FontWeight.SemiBold)
                 }
+            } else {
+                Text(
+                    text = if (remainingMs == null) "Ongoing" else formatTimer(remainingMs),
+                    style = MaterialTheme.typography.titleMedium.tabular(),
+                    fontWeight = FontWeight.Bold,
+                    color = customColors.strictAmber,
+                    maxLines = 1
+                )
+            }
+        }
+    } else {
+        Row(
+            modifier = Modifier
+                .fillMaxWidth()
+                .heightIn(min = 48.dp),
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = "Strict Mode",
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Text(
+                    text = "Lock profiles for a fixed commitment term.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = customColors.subtleText
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            TextButton(onClick = onActivate) {
+                Text("Set up", fontWeight = FontWeight.SemiBold)
             }
         }
     }
 }
 
-// ── Quick Block Presets Bar ──────────────────────────────────────────────────
-
 @Composable
-private fun QuickBlockPresetsBar(
-    onSelectDuration: (Int) -> Unit
+private fun ProfilesHeader(
+    count: Int,
+    onAddProfile: () -> Unit
 ) {
-    Column {
+    val customColors = LocalCustomColors.current
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        verticalAlignment = Alignment.CenterVertically
+    ) {
         Text(
-            text = "⚡ QUICK TIMERS",
-            style = MaterialTheme.typography.labelSmall,
+            text = stringResource(id = R.string.home_profiles),
+            style = MaterialTheme.typography.titleMedium,
             fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant,
-            letterSpacing = 1.sp
+            color = MaterialTheme.colorScheme.onBackground
         )
-        Spacer(modifier = Modifier.height(8.dp))
-        LazyRow(
-            horizontalArrangement = Arrangement.spacedBy(8.dp),
-            contentPadding = PaddingValues(end = 8.dp)
-        ) {
-            val presets = listOf(15, 30, 45, 60, 120)
-            items(presets) { minutes ->
-                OutlinedCard(
-                    onClick = { onSelectDuration(minutes) },
-                    shape = RoundedCornerShape(12.dp),
-                    colors = CardDefaults.outlinedCardColors(
-                        containerColor = MaterialTheme.colorScheme.surface
-                    )
-                ) {
-                    Row(
-                        modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(
-                            imageVector = Icons.Default.Bolt,
-                            contentDescription = null,
-                            tint = MaterialTheme.colorScheme.primary,
-                            modifier = Modifier.size(16.dp)
-                        )
-                        Spacer(modifier = Modifier.width(6.dp))
-                        Text(
-                            text = if (minutes >= 60) "${minutes / 60}h" else "${minutes}m",
-                            style = MaterialTheme.typography.bodyMedium,
-                            fontWeight = FontWeight.SemiBold
-                        )
-                    }
-                }
-            }
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = "$count",
+            style = MaterialTheme.typography.bodySmall,
+            color = customColors.subtleText
+        )
+        Spacer(modifier = Modifier.weight(1f))
+        TextButton(onClick = onAddProfile) {
+            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
+            Spacer(modifier = Modifier.width(4.dp))
+            Text("New", fontWeight = FontWeight.SemiBold)
         }
     }
 }
 
-// ── Profile Card ─────────────────────────────────────────────────────────────
-
 @Composable
-private fun ProfileCard(
+private fun ProfileRow(
     profile: Profile,
     isActiveNow: Boolean,
     isStrictActive: Boolean,
+    activeInfo: ActiveProfileInfo?,
     remainingMs: Long?,
+    showDivider: Boolean,
     onEdit: () -> Unit,
     onToggle: (Boolean) -> Unit
 ) {
     val customColors = LocalCustomColors.current
 
-    val borderColor by animateColorAsState(
-        targetValue = when {
-            isStrictActive -> customColors.strictAmber
-            isActiveNow -> customColors.activeGreen
-            profile.enabled -> MaterialTheme.colorScheme.primary.copy(alpha = 0.5f)
-            else -> customColors.cardBorder
-        },
-        animationSpec = tween(300),
-        label = "borderColor"
-    )
-
-    Card(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clickable(onClick = onEdit),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, borderColor),
-        elevation = CardDefaults.cardElevation(defaultElevation = if (isActiveNow) 3.dp else 1.dp)
-    ) {
-        Column(modifier = Modifier.padding(16.dp)) {
-            // Header Row: Name & Switch / Locked Indicator
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = profile.name.ifBlank { "Untitled Profile" },
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = FontWeight.Bold
-                    )
-
-                    // Schedule description or remaining time
-                    if (isActiveNow && remainingMs != null && remainingMs > 0) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Text(
-                            text = "Active · ${formatCountdown(remainingMs)} remaining",
-                            style = MaterialTheme.typography.bodySmall,
-                            fontWeight = FontWeight.SemiBold,
-                            color = if (isStrictActive) customColors.strictAmber else customColors.activeGreen
-                        )
-                    } else if (profile.schedules.isNotEmpty()) {
-                        Spacer(modifier = Modifier.height(2.dp))
-                        Row(verticalAlignment = Alignment.CenterVertically) {
-                            Icon(
-                                imageVector = Icons.Default.Schedule,
-                                contentDescription = null,
-                                modifier = Modifier.size(13.dp),
-                                tint = MaterialTheme.colorScheme.onSurfaceVariant
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = formatScheduleSummary(profile.schedules.first()),
-                                style = MaterialTheme.typography.bodySmall,
-                                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                                maxLines = 1
-                            )
-                        }
-                    }
-                }
-
-                // Control: In Strict Mode while active, show dedicated Lock Pill instead of switch!
-                if (isStrictActive) {
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = customColors.strictContainer,
-                        border = BorderStroke(1.dp, customColors.strictAmber.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = customColors.strictAmber,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(4.dp))
-                            Text(
-                                text = "LOCKED",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = customColors.strictOnContainer
-                            )
-                        }
-                    }
-                } else {
-                    Switch(
-                        checked = profile.enabled,
-                        onCheckedChange = onToggle,
-                        colors = SwitchDefaults.colors(
-                            checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                            checkedTrackColor = if (profile.strict) customColors.strictAmber else MaterialTheme.colorScheme.primary
-                        )
-                    )
-                }
-            }
-
-            // Blocked Apps Chips Preview
-            if (profile.blockedApps.isNotEmpty()) {
-                Spacer(modifier = Modifier.height(12.dp))
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHigh
-                    ) {
-                        Text(
-                            text = "${profile.blockedApps.size} apps",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Medium,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp),
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                    Spacer(modifier = Modifier.width(8.dp))
-                    Text(
-                        text = profile.blockedApps.take(4).joinToString(", ") { it.substringAfterLast('.') },
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        maxLines = 1
-                    )
-                    if (profile.blockedApps.size > 4) {
-                        Text(
-                            text = " +${profile.blockedApps.size - 4}",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-            }
+    val subtitle: String
+    val subtitleColor: Color
+    if (isActiveNow && remainingMs != null && remainingMs > 0) {
+        val isUsageLimit = activeInfo?.schedule?.mode == ScheduleMode.USAGE_LIMIT
+        subtitle = when {
+            isStrictActive -> "Locked, ${formatCountdown(remainingMs)} remaining"
+            isUsageLimit -> "Quota active, ${formatCountdown(remainingMs)} until reset"
+            else -> "Active, ${formatCountdown(remainingMs)} remaining"
         }
+        subtitleColor = if (isStrictActive) customColors.strictAmber else customColors.positive
+    } else {
+        val schedule = profile.schedules.firstOrNull()
+        val appCount = profile.blockedApps.size
+        subtitle = buildString {
+            if (appCount > 0) append("$appCount apps")
+            if (schedule != null) {
+                if (isNotEmpty()) append(", ")
+                append(formatScheduleSummary(schedule))
+            }
+            if (isEmpty()) append("No apps, no schedule")
+        }
+        subtitleColor = customColors.subtleText
     }
-}
 
-// ── Empty State ──────────────────────────────────────────────────────────────
-
-@Composable
-private fun EmptyProfilesCard(onCreateProfile: () -> Unit) {
-    Card(
-        modifier = Modifier.fillMaxWidth(),
-        shape = RoundedCornerShape(16.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(1.dp, LocalCustomColors.current.cardBorder)
-    ) {
-        Column(
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(32.dp),
-            horizontalAlignment = Alignment.CenterHorizontally
+                .clickable(onClick = onEdit)
+                .heightIn(min = 68.dp)
+                .padding(vertical = 12.dp),
+            verticalAlignment = Alignment.CenterVertically
         ) {
-            Surface(
-                shape = CircleShape,
-                color = MaterialTheme.colorScheme.primaryContainer,
-                modifier = Modifier.size(64.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
+            Column(modifier = Modifier.weight(1f)) {
+                Text(
+                    text = profile.name.ifBlank { "Untitled profile" },
+                    style = MaterialTheme.typography.titleMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = MaterialTheme.colorScheme.onBackground
+                )
+                Spacer(modifier = Modifier.height(3.dp))
+                Text(
+                    text = subtitle,
+                    style = MaterialTheme.typography.bodySmall,
+                    color = subtitleColor,
+                    maxLines = 1,
+                    overflow = TextOverflow.Ellipsis
+                )
+            }
+            Spacer(modifier = Modifier.width(12.dp))
+            if (isStrictActive) {
+                Row(verticalAlignment = Alignment.CenterVertically) {
                     Icon(
-                        imageVector = Icons.Default.Shield,
+                        imageVector = Icons.Default.Lock,
                         contentDescription = null,
-                        tint = MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(32.dp)
+                        tint = customColors.strictAmber,
+                        modifier = Modifier.size(14.dp)
+                    )
+                    Spacer(modifier = Modifier.width(4.dp))
+                    Text(
+                        text = "Locked",
+                        style = MaterialTheme.typography.labelSmall,
+                        fontWeight = FontWeight.SemiBold,
+                        color = customColors.strictAmber
                     )
                 }
+            } else {
+                Switch(
+                    checked = profile.enabled,
+                    onCheckedChange = onToggle,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
+                        checkedTrackColor = if (profile.strict) customColors.strictAmber
+                        else MaterialTheme.colorScheme.primary
+                    )
+                )
             }
-            Spacer(modifier = Modifier.height(16.dp))
-            Text(
-                text = stringResource(id = R.string.home_empty_title),
-                style = MaterialTheme.typography.titleMedium,
-                fontWeight = FontWeight.Bold
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-            Text(
-                text = stringResource(id = R.string.home_empty_subtitle),
-                style = MaterialTheme.typography.bodyMedium,
-                color = MaterialTheme.colorScheme.onSurfaceVariant,
-                textAlign = androidx.compose.ui.text.style.TextAlign.Center
-            )
-            Spacer(modifier = Modifier.height(20.dp))
-            Button(
-                onClick = onCreateProfile,
-                shape = RoundedCornerShape(12.dp)
-            ) {
-                Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
-                Spacer(modifier = Modifier.width(8.dp))
-                Text(stringResource(id = R.string.home_empty_action), fontWeight = FontWeight.SemiBold)
-            }
+        }
+        if (showDivider) {
+            HorizontalDivider(color = customColors.cardBorder, thickness = 1.dp)
         }
     }
 }
 
-// ── Quick Block Modal ────────────────────────────────────────────────────────
+@Composable
+private fun EmptyProfilesState(onCreateProfile: () -> Unit) {
+    val customColors = LocalCustomColors.current
+    Column(modifier = Modifier.fillMaxWidth()) {
+        Text(
+            text = stringResource(id = R.string.home_empty_title),
+            style = MaterialTheme.typography.titleMedium,
+            fontWeight = FontWeight.Bold,
+            color = MaterialTheme.colorScheme.onBackground
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+        Text(
+            text = stringResource(id = R.string.home_empty_subtitle),
+            style = MaterialTheme.typography.bodyMedium,
+            color = customColors.subtleText
+        )
+        Spacer(modifier = Modifier.height(16.dp))
+        Button(
+            onClick = onCreateProfile,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(48.dp),
+            shape = RoundedCornerShape(10.dp)
+        ) {
+            Text(stringResource(id = R.string.home_empty_action), fontWeight = FontWeight.SemiBold)
+        }
+    }
+}
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -1050,16 +680,12 @@ private fun QuickBlockModal(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(Icons.Default.Bolt, contentDescription = null, tint = MaterialTheme.colorScheme.primary)
-                Spacer(modifier = Modifier.width(8.dp))
-                Text("Quick Block", fontWeight = FontWeight.Bold)
-            }
+            Text("Quick session", fontWeight = FontWeight.Bold)
         },
         text = {
             Column {
                 Text(
-                    text = "Select duration:",
+                    text = "Duration",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium
                 )
@@ -1073,7 +699,11 @@ private fun QuickBlockModal(
                         FilterChip(
                             selected = duration == mins,
                             onClick = { duration = mins },
-                            label = { Text("${mins}m") }
+                            label = { Text(formatDurationShort(mins)) },
+                            colors = FilterChipDefaults.filterChipColors(
+                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
+                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                            )
                         )
                     }
                 }
@@ -1081,7 +711,7 @@ private fun QuickBlockModal(
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Apps to block (${selectedApps.size} selected):",
+                    text = "Apps (${selectedApps.size} of ${allUniqueApps.size})",
                     style = MaterialTheme.typography.titleSmall,
                     fontWeight = FontWeight.Medium
                 )
@@ -1089,7 +719,7 @@ private fun QuickBlockModal(
 
                 if (allUniqueApps.isEmpty()) {
                     Text(
-                        text = "No apps in your profiles yet. Create a profile to pick apps or edit in profile settings.",
+                        text = "No apps in your profiles yet. Create a profile to pick apps.",
                         style = MaterialTheme.typography.bodySmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -1116,9 +746,9 @@ private fun QuickBlockModal(
         confirmButton = {
             Button(
                 onClick = { onConfirm(duration, selectedApps) },
-                shape = RoundedCornerShape(8.dp)
+                shape = RoundedCornerShape(10.dp)
             ) {
-                Text("Start Block (${duration}m)")
+                Text("Start ${formatDurationShort(duration)} session")
             }
         },
         dismissButton = {
@@ -1128,6 +758,9 @@ private fun QuickBlockModal(
         }
     )
 }
+
+private fun formatDurationShort(minutes: Int): String =
+    if (minutes >= 60 && minutes % 60 == 0) "${minutes / 60}h" else "${minutes}m"
 
 private fun formatTimer(ms: Long): String {
     val totalSeconds = (ms / 1000).coerceAtLeast(0)
@@ -1146,201 +779,4 @@ private fun formatCountdown(ms: Long): String {
     val hours = totalMinutes / 60
     val minutes = totalMinutes % 60
     return if (hours > 0) "%dh %02dm".format(hours, minutes) else "%dm".format(minutes)
-}
-
-@Composable
-fun PermissionsHealthCard(
-    permissionsState: SystemPermissionsState,
-    onFixAccessibility: () -> Unit,
-    onFixAdmin: () -> Unit,
-    onFixBattery: () -> Unit,
-    modifier: Modifier = Modifier
-) {
-    val customColors = LocalCustomColors.current
-
-    if (!permissionsState.hasAnyWarning) {
-        Surface(
-            modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            color = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.35f),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.3f))
-        ) {
-            Row(
-                modifier = Modifier.padding(horizontal = 14.dp, vertical = 10.dp),
-                verticalAlignment = Alignment.CenterVertically
-            ) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier.size(18.dp)
-                )
-                Spacer(modifier = Modifier.width(10.dp))
-                Text(
-                    text = "Protection Active · Permissions & battery setup verified",
-                    style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
-                )
-            }
-        }
-    } else {
-        Card(
-            modifier = modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(16.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (!permissionsState.isAccessibilityGranted) {
-                    MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.3f)
-                } else {
-                    MaterialTheme.colorScheme.surfaceContainerHigh
-                }
-            ),
-            border = BorderStroke(
-                1.5.dp,
-                if (!permissionsState.isAccessibilityGranted) MaterialTheme.colorScheme.error.copy(alpha = 0.7f)
-                else customColors.strictAmber.copy(alpha = 0.6f)
-            )
-        ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = if (!permissionsState.isAccessibilityGranted) Icons.Default.Warning else Icons.Default.Security,
-                        contentDescription = null,
-                        tint = if (!permissionsState.isAccessibilityGranted) MaterialTheme.colorScheme.error else customColors.strictAmber,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.width(10.dp))
-                    Column {
-                        Text(
-                            text = if (!permissionsState.isAccessibilityGranted) "APP BLOCKING IS INACTIVE" else "SYSTEM PERMISSIONS SETUP",
-                            style = MaterialTheme.typography.labelMedium,
-                            fontWeight = FontWeight.Bold,
-                            color = if (!permissionsState.isAccessibilityGranted) MaterialTheme.colorScheme.error else customColors.strictAmber,
-                            letterSpacing = 1.sp
-                        )
-                        Text(
-                            text = if (!permissionsState.isAccessibilityGranted) {
-                                "FocusBlock requires Accessibility to detect opened apps"
-                            } else {
-                                "Complete setup to ensure reliable blocking and strict mode"
-                            },
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-                }
-
-                Spacer(modifier = Modifier.height(14.dp))
-
-                PermissionItemRow(
-                    title = "Accessibility Service",
-                    statusText = if (permissionsState.isAccessibilityGranted) "Granted · Active" else "Not Granted (Required to Block)",
-                    isGranted = permissionsState.isAccessibilityGranted,
-                    actionButtonLabel = "Enable",
-                    isCritical = true,
-                    onClickAction = onFixAccessibility
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                PermissionItemRow(
-                    title = "Device Administrator",
-                    statusText = if (permissionsState.isDeviceAdminGranted) "Active · Strict Protection Ready" else "Not Granted (Required for Strict Mode)",
-                    isGranted = permissionsState.isDeviceAdminGranted,
-                    actionButtonLabel = "Activate",
-                    isCritical = false,
-                    onClickAction = onFixAdmin
-                )
-
-                Spacer(modifier = Modifier.height(10.dp))
-
-                PermissionItemRow(
-                    title = "Battery Optimization",
-                    statusText = if (permissionsState.isBatteryOptimizationIgnored) "Unrestricted · Reliable" else "Optimized (OS may kill background blocks)",
-                    isGranted = permissionsState.isBatteryOptimizationIgnored,
-                    actionButtonLabel = "Fix",
-                    isCritical = false,
-                    onClickAction = onFixBattery
-                )
-
-                if (!permissionsState.isAccessibilityGranted) {
-                    Spacer(modifier = Modifier.height(12.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = MaterialTheme.colorScheme.surface.copy(alpha = 0.6f)
-                    ) {
-                        Text(
-                            text = "💡 Android 13/14 tip: If the toggle in Accessibility is greyed out, go to Phone Settings → Apps → FocusBlock → 3 dots (top-right) → tap 'Allow restricted settings'.",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(10.dp)
-                        )
-                    }
-                }
-            }
-        }
-    }
-}
-
-@Composable
-private fun PermissionItemRow(
-    title: String,
-    statusText: String,
-    isGranted: Boolean,
-    actionButtonLabel: String,
-    isCritical: Boolean,
-    onClickAction: () -> Unit
-) {
-    val customColors = LocalCustomColors.current
-
-    Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
-            .background(MaterialTheme.colorScheme.surface.copy(alpha = 0.5f))
-            .padding(horizontal = 12.dp, vertical = 8.dp),
-        verticalAlignment = Alignment.CenterVertically,
-        horizontalArrangement = Arrangement.SpaceBetween
-    ) {
-        Column(modifier = Modifier.weight(1f)) {
-            Text(
-                text = title,
-                style = MaterialTheme.typography.bodyMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.onSurface
-            )
-            Text(
-                text = statusText,
-                style = MaterialTheme.typography.labelSmall,
-                color = if (isGranted) Color(0xFF4CAF50)
-                else if (isCritical) MaterialTheme.colorScheme.error
-                else customColors.strictAmber
-            )
-        }
-
-        if (!isGranted) {
-            Button(
-                onClick = onClickAction,
-                shape = RoundedCornerShape(8.dp),
-                contentPadding = PaddingValues(horizontal = 12.dp, vertical = 6.dp),
-                colors = ButtonDefaults.buttonColors(
-                    containerColor = if (isCritical) MaterialTheme.colorScheme.error else MaterialTheme.colorScheme.primary
-                ),
-                modifier = Modifier.height(34.dp)
-            ) {
-                Text(
-                    text = actionButtonLabel,
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold
-                )
-            }
-        } else {
-            Icon(
-                imageVector = Icons.Default.CheckCircle,
-                contentDescription = "Granted",
-                tint = Color(0xFF4CAF50),
-                modifier = Modifier.size(20.dp)
-            )
-        }
-    }
 }

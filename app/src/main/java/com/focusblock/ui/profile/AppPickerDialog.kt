@@ -10,6 +10,7 @@ import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.defaultMinSize
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -45,7 +46,6 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
-import androidx.compose.ui.graphics.asImageBitmap
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
@@ -67,7 +67,6 @@ fun AppPickerDialog(
 ) {
     var searchQuery by remember { mutableStateOf("") }
 
-    // Selected apps are sorted to the beginning of the list, then alphabetically by label.
     val filteredApps = remember(apps, searchQuery, selectedPackages) {
         val list = if (searchQuery.isBlank()) {
             apps
@@ -118,7 +117,6 @@ fun AppPickerDialog(
                     .fillMaxWidth()
                     .height(440.dp)
             ) {
-                // Search Field
                 OutlinedTextField(
                     value = searchQuery,
                     onValueChange = { searchQuery = it },
@@ -135,20 +133,19 @@ fun AppPickerDialog(
                             IconButton(onClick = { searchQuery = "" }) {
                                 Icon(
                                     imageVector = Icons.Default.Clear,
-                                    contentDescription = "Clear",
+                                    contentDescription = "Clear search",
                                     modifier = Modifier.size(18.dp)
                                 )
                             }
                         }
                     },
                     singleLine = true,
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(bottom = 8.dp)
                 )
 
-                // Quick Toggle Row (Select Visible / Clear)
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
@@ -157,7 +154,7 @@ fun AppPickerDialog(
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = "${filteredApps.size} apps · selected first",
+                        text = "${filteredApps.size} apps available",
                         style = MaterialTheme.typography.labelSmall,
                         color = MaterialTheme.colorScheme.onSurfaceVariant
                     )
@@ -175,7 +172,7 @@ fun AppPickerDialog(
                                         }
                                     }
                                 }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
@@ -191,7 +188,7 @@ fun AppPickerDialog(
                                         }
                                     }
                                 }
-                                .padding(horizontal = 6.dp, vertical = 4.dp)
+                                .padding(horizontal = 8.dp, vertical = 6.dp)
                         )
                     }
                 }
@@ -256,13 +253,15 @@ private fun AppPickerRow(
     val initial = app.label.firstOrNull()?.uppercaseChar() ?: 'A'
     val badgeColors = remember(app.packageName) {
         val palette = listOf(
-            Color(0xFF6366F1), Color(0xFF06B6D4), Color(0xFF10B981),
-            Color(0xFFF59E0B), Color(0xFFEC4899), Color(0xFF8B5CF6)
+            Color(0xFF3B82F6),
+            Color(0xFF10B981),
+            Color(0xFFF59E0B),
+            Color(0xFF6366F1),
+            Color(0xFF14B8A6)
         )
         palette[app.packageName.hashCode().absoluteValue % palette.size]
     }
 
-    // Asynchronously load app icon off the main thread with LRU memory caching
     val iconBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = AppIconCache.get(app.packageName),
         key1 = app.packageName
@@ -275,14 +274,14 @@ private fun AppPickerRow(
     Row(
         modifier = Modifier
             .fillMaxWidth()
-            .clip(RoundedCornerShape(10.dp))
+            .defaultMinSize(minHeight = 52.dp)
+            .clip(RoundedCornerShape(8.dp))
             .clickable(enabled = enabled, onClick = onToggle)
             .padding(horizontal = 8.dp, vertical = 6.dp),
         verticalAlignment = Alignment.CenterVertically
     ) {
-        // App Icon Badge
         Surface(
-            shape = RoundedCornerShape(10.dp),
+            shape = RoundedCornerShape(8.dp),
             color = MaterialTheme.colorScheme.surfaceContainerHigh,
             modifier = Modifier.size(40.dp)
         ) {
@@ -293,7 +292,7 @@ private fun AppPickerRow(
                     contentDescription = app.label,
                     modifier = Modifier
                         .fillMaxSize()
-                        .clip(RoundedCornerShape(10.dp))
+                        .clip(RoundedCornerShape(8.dp))
                 )
             } else {
                 Box(contentAlignment = Alignment.Center) {

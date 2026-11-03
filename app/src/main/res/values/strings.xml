@@ -39,18 +39,19 @@
     <string name="accessibility_service_not_available">Accessibility service is not enabled. Some blocking features will be limited.</string>
 
     <!-- Home -->
-    <string name="home_title">FocusBlock</string>    <string name="home_active_blocks">Active blocks</string>
+    <string name="home_title">FocusBlock</string>
+    <string name="home_active_blocks">Active blocks</string>
     <string name="home_no_active_blocks">No active blocks</string>
-    <string name="home_quick_block">Quick block</string>
+    <string name="home_quick_block">Quick session</string>
     <string name="home_profiles">Profiles</string>
-    <string name="home_add_profile">Add profile</string>
+    <string name="home_add_profile">New profile</string>
     <string name="home_time_remaining">Time remaining</string>
     <string name="home_blocked_apps">Blocked apps</string>
-    <string name="quick_block_placeholder">Quick block setup will be completed in the next milestone.</string>
+    <string name="quick_block_placeholder">Quick session setup</string>
 
     <!-- Profile editor -->
     <string name="profile_editor_title">Profile</string>
-    <string name="profile_editor_new">New Profile</string>
+    <string name="profile_editor_new">New profile</string>
     <string name="profile_name">Profile name</string>
     <string name="profile_blocked_apps">Blocked apps</string>
     <string name="profile_pick_apps">Pick apps</string>
@@ -75,10 +76,10 @@
     <string name="strict_rule_pause">Cannot pause or toggle off during sessions</string>
     <string name="strict_rule_reduce">Cannot remove apps or shorten duration</string>
     <string name="strict_rule_add_only">Adding more apps or extending duration is allowed</string>
-    <string name="home_empty_title">No Focus Profiles</string>
-    <string name="home_empty_subtitle">Create a profile to schedule blocks, eliminate distractions, and take control of your focus.</string>
-    <string name="home_empty_action">Create Focus Profile</string>
-    <string name="home_session_active">FOCUS SESSION ACTIVE</string>
+    <string name="home_empty_title">No profiles</string>
+    <string name="home_empty_subtitle">A profile blocks selected apps according to your schedule or timer.</string>
+    <string name="home_empty_action">New profile</string>
+    <string name="home_session_active">Focus session active</string>
     <string name="home_session_idle">All clear · No active restrictions</string>
     <string name="app_picker_select_all">Select All</string>
     <string name="app_picker_clear_all">Clear All</string>
@@ -94,10 +95,10 @@
     <string name="strict_independent_subtitle">Independent commitment &amp; anti-tamper</string>
     <string name="strict_independent_activate">Activate Strict Mode</string>
     <string name="strict_independent_disarm">Disarm Strict Mode</string>
-    <string name="strict_independent_armed_badge">ARMED · LOCKED</string>
-    <string name="strict_independent_idle_badge">DISARMED</string>
-    <string name="strict_independent_idle_desc">Lock all profiles and prevent tampering across all schedules with custom commitment terms.</string>
-    <string name="strict_independent_active_desc">Strict mode is independently active. Profiles cannot be modified, turned off, or uninstalled.</string>
+    <string name="strict_independent_armed_badge">Strict Mode active</string>
+    <string name="strict_independent_idle_badge">Idle</string>
+    <string name="strict_independent_idle_desc">Lock all profiles and prevent tampering across all schedules.</string>
+    <string name="strict_independent_active_desc">Strict Mode is active. Profiles cannot be modified, turned off, or uninstalled.</string>
     <string name="strict_terms_dialog_title">Select Strict Mode Terms</string>
     <string name="strict_terms_dialog_subtitle">Choose your commitment period. Strict mode stays continuously armed across all schedules until the term expires.</string>
     <string name="strict_terms_preset_4h">4 Hours</string>
@@ -113,7 +114,7 @@
     <!-- Schedule -->
     <string name="schedule_recurring">Recurring</string>
     <string name="schedule_one_off">One-off</string>
-    <string name="schedule_quick">Quick block</string>
+    <string name="schedule_quick">Quick session</string>
     <string name="schedule_days">Days of week</string>
     <string name="schedule_start_time">Start time</string>
     <string name="schedule_end_time">End time</string>
@@ -125,11 +126,12 @@
 
     <!-- Block screen -->
     <string name="block_title">Blocked</string>
-    <string name="block_take_a_breath">Take a breath</string>
-    <string name="block_app_is_blocked">This App is Blocked</string>
-    <string name="block_time_remaining">TIME REMAINING</string>
-    <string name="block_strict_enforced">Strict Mode Enforced · Bypassing is locked until the session finishes.</string>
-    <string name="block_return_home">Return to Home</string>
+    <string name="block_take_a_breath">Focus in progress</string>
+    <string name="block_app_is_blocked">App blocked</string>
+    <string name="block_usage_limit_reached">Usage limit reached</string>
+    <string name="block_time_remaining">Time remaining</string>
+    <string name="block_strict_enforced">Strict Mode is active. Bypassing is locked until the session ends.</string>
+    <string name="block_return_home">Return home</string>
     <string name="block_schedule_same_time_error">Start time and end time cannot be the same</string>
     <string name="block_unknown_app">Unknown app</string>
     <string name="block_unknown_profile">Unknown profile</string>
@@ -138,6 +140,17 @@
     <string name="block_time_remaining_label">Time remaining</string>
     <string name="block_go_home">Go home</string>
     <string name="block_strict_message">This app is blocked by a strict profile. It cannot be unblocked until the schedule ends.</string>
+
+    <!-- Usage Limit Block Strings -->
+    <string name="schedule_mode_block">Static Block</string>
+    <string name="schedule_mode_usage_limit">Usage Limit</string>
+    <string name="schedule_hourly">Hourly</string>
+    <string name="schedule_daily">Daily</string>
+    <string name="schedule_time_window">Time Window</string>
+    <string name="schedule_usage_limit_title">Allowed Usage Time</string>
+    <string name="schedule_reset_frequency_title">Time Frame / Reset Period</string>
+    <string name="schedule_limit_scope_per_app">Per App</string>
+    <string name="schedule_limit_scope_combined">Combined Budget</string>
 
     <!-- Stats -->
     <string name="stats_title">Statistics</string>

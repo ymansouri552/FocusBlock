@@ -3,6 +3,7 @@ package com.focusblock.data.local.datastore
 import android.content.Context
 import android.os.SystemClock
 import android.provider.Settings
+import androidx.datastore.core.DataStore
 import androidx.datastore.preferences.core.Preferences
 import androidx.datastore.preferences.core.booleanPreferencesKey
 import androidx.datastore.preferences.core.edit
@@ -80,9 +81,11 @@ enum class StrictLevel(val value: String) {
     AGGRESSIVE("AGGRESSIVE")
 }
 
-open class SettingsDataStore(context: Context) {
+open class SettingsDataStore(
+    context: Context,
+    private val dataStore: DataStore<Preferences> = context.applicationContext.focusBlockDataStore
+) {
     private val appContext = context.applicationContext
-    private val dataStore = appContext.focusBlockDataStore
     val settings: Flow<Preferences> = dataStore.data
 
     fun currentBootCount(): Int = runCatching {
@@ -175,6 +178,10 @@ open class SettingsDataStore(context: Context) {
             prefs[SettingsKeys.independentStrictStartedElapsedRealtimeMs] = elapsedRealtimeMs
             prefs[SettingsKeys.independentStrictLastObservedElapsedMs] = 0L
             prefs[SettingsKeys.independentStrictBootCount] = bootCount
+            // A pending emergency unlock never carries over into a new commitment.
+            prefs.remove(SettingsKeys.emergencyUnlockRequestEpochMs)
+            prefs.remove(SettingsKeys.emergencyUnlockRequestElapsedRealtimeMs)
+            prefs.remove(SettingsKeys.emergencyUnlockRequestBootCount)
         }
     }
 
@@ -190,6 +197,9 @@ open class SettingsDataStore(context: Context) {
             prefs.remove(SettingsKeys.clockAnchorWallEpochMs)
             prefs.remove(SettingsKeys.clockAnchorElapsedRealtimeMs)
             prefs.remove(SettingsKeys.clockAnchorBootCount)
+            prefs.remove(SettingsKeys.emergencyUnlockRequestEpochMs)
+            prefs.remove(SettingsKeys.emergencyUnlockRequestElapsedRealtimeMs)
+            prefs.remove(SettingsKeys.emergencyUnlockRequestBootCount)
         }
     }
 
@@ -334,6 +344,12 @@ open class SettingsDataStore(context: Context) {
 
     open suspend fun setPlayDisclosureAccepted(accepted: Boolean) {
         dataStore.edit { prefs -> prefs[SettingsKeys.playDisclosureAccepted] = accepted }
+    }
+
+    open val themeMode: Flow<String> = flowString(SettingsKeys.theme, "DARK")
+
+    open suspend fun setThemeMode(mode: String) {
+        writeString(SettingsKeys.theme, mode)
     }
 
     open fun flowString(key: Preferences.Key<String>, default: String): Flow<String> {

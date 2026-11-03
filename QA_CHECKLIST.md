@@ -53,3 +53,14 @@
 - [ ] No `INTERNET` permission
 - [ ] No `QUERY_ALL_PACKAGES`
 - [ ] All data local; export to JSON works locally
+
+## 9. Dynamic Usage-Limit Blocking (v3)
+- [ ] Schedule mode toggle (Static Block vs Usage Limit)
+- [ ] Time Window limit (e.g. 8 AM to 12 PM allowed for 15m, then blocked)
+- [ ] Hourly limit (allowed for 15m each hour, resets at :00)
+- [ ] Daily limit (allowed for 30m each day, resets at midnight)
+- [ ] Quota scope: Per App vs Combined budget across profile apps
+- [ ] Real-time foreground ticker triggers block screen immediately when limit reached
+- [ ] Block screen displays "Usage Limit Reached" and countdown until quota resets
+- [ ] Screen off pauses session tracking; screen on resumes
+- [ ] Database migration from v2 to v3 preserves existing data and tables

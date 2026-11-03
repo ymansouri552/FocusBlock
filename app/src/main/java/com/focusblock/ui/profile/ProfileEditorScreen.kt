@@ -1,6 +1,5 @@
 package com.focusblock.ui.profile
 
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
@@ -24,22 +23,16 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.Add
 import androidx.compose.material.icons.filled.Apps
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Close
 import androidx.compose.material.icons.filled.Delete
 import androidx.compose.material.icons.filled.Edit
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.LockOpen
 import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.Security
-import androidx.compose.material.icons.filled.Shield
 import androidx.compose.material.icons.filled.WarningAmber
-import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
-import androidx.compose.material3.Checkbox
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilledTonalButton
 import androidx.compose.material3.Icon
@@ -54,17 +47,12 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableStateOf
-import androidx.compose.runtime.remember
-import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
@@ -134,7 +122,7 @@ fun ProfileEditorScreen(
                 .padding(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(16.dp)
         ) {
-            // ── Error Banner ────────────────────────────────────────────────
+            // Error Banner
             ui.error?.let { error ->
                 Card(
                     modifier = Modifier.fillMaxWidth(),
@@ -160,20 +148,19 @@ fun ProfileEditorScreen(
                 }
             }
 
-            // ── Section 1: Profile Identity Card ────────────────────────────
+            // Section 1: Profile Identity Card
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, customColors.cardBorder)
             ) {
                 Column(modifier = Modifier.padding(16.dp)) {
                     Text(
-                        text = "PROFILE IDENTITY",
-                        style = MaterialTheme.typography.labelSmall,
+                        text = "Profile Identity",
+                        style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant,
-                        letterSpacing = 1.sp
+                        color = MaterialTheme.colorScheme.onSurface
                     )
                     Spacer(modifier = Modifier.height(10.dp))
                     OutlinedTextField(
@@ -184,7 +171,7 @@ fun ProfileEditorScreen(
                         modifier = Modifier.fillMaxWidth(),
                         enabled = !isStrictActive,
                         singleLine = true,
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(10.dp)
                     )
 
                     Spacer(modifier = Modifier.height(14.dp))
@@ -214,10 +201,10 @@ fun ProfileEditorScreen(
                 }
             }
 
-            // ── Section 2: Blocked Apps Hub ─────────────────────────────────
+            // Section 2: Blocked Apps Hub
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, customColors.cardBorder)
             ) {
@@ -299,7 +286,7 @@ fun ProfileEditorScreen(
                         Spacer(modifier = Modifier.height(14.dp))
                     } else {
                         Text(
-                            text = "No apps blocked yet. Tap below to pick distracting apps.",
+                            text = "No apps blocked yet. Tap below to pick targeted apps.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurfaceVariant
                         )
@@ -309,7 +296,7 @@ fun ProfileEditorScreen(
                     FilledTonalButton(
                         onClick = { viewModel.setAppPickerOpen(true) },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp)
+                        shape = RoundedCornerShape(10.dp)
                     ) {
                         Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(18.dp))
                         Spacer(modifier = Modifier.width(6.dp))
@@ -318,10 +305,10 @@ fun ProfileEditorScreen(
                 }
             }
 
-            // ── Section 3: Schedules Hub ────────────────────────────────────
+            // Section 3: Schedules Hub
             Card(
                 modifier = Modifier.fillMaxWidth(),
-                shape = RoundedCornerShape(16.dp),
+                shape = RoundedCornerShape(14.dp),
                 colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
                 border = BorderStroke(1.dp, customColors.cardBorder)
             ) {
@@ -363,7 +350,7 @@ fun ProfileEditorScreen(
                             modifier = Modifier
                                 .fillMaxWidth()
                                 .padding(vertical = 4.dp),
-                            shape = RoundedCornerShape(12.dp),
+                            shape = RoundedCornerShape(10.dp),
                             border = BorderStroke(1.dp, customColors.cardBorder)
                         ) {
                             Column(
@@ -392,7 +379,7 @@ fun ProfileEditorScreen(
                                 modifier = Modifier
                                     .fillMaxWidth()
                                     .padding(vertical = 4.dp),
-                                shape = RoundedCornerShape(12.dp),
+                                shape = RoundedCornerShape(10.dp),
                                 border = BorderStroke(1.dp, customColors.cardBorder)
                             ) {
                                 Row(
@@ -437,12 +424,12 @@ fun ProfileEditorScreen(
                 }
             }
 
-            // ── Strict Protection Notice (Only shown when Strict Mode is actively protecting) ──
+            // Strict Protection Notice
             if (isStrictActive) {
                 Surface(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(14.dp),
-                    color = customColors.strictContainer.copy(alpha = 0.35f),
+                    shape = RoundedCornerShape(12.dp),
+                    color = customColors.strictContainer.copy(alpha = 0.5f),
                     border = BorderStroke(1.dp, customColors.strictAmber.copy(alpha = 0.6f))
                 ) {
                     Row(
@@ -466,13 +453,13 @@ fun ProfileEditorScreen(
                         Spacer(modifier = Modifier.width(12.dp))
                         Column {
                             Text(
-                                text = "STRICT MODE ACTIVE",
+                                text = "Strict Protection Active",
                                 style = MaterialTheme.typography.titleSmall,
                                 fontWeight = FontWeight.Bold,
                                 color = customColors.strictAmber
                             )
                             Text(
-                                text = "Profiles are protected under independent strict terms. Deactivation, deletion, and app removal are locked.",
+                                text = "This profile is locked under active strict terms. Deactivation, deletion, and app removal are disabled.",
                                 style = MaterialTheme.typography.bodySmall,
                                 color = MaterialTheme.colorScheme.onSurfaceVariant
                             )
@@ -481,13 +468,13 @@ fun ProfileEditorScreen(
                 }
             }
 
-            // ── Delete Profile (Danger Zone) ─────────────────────────────────
+            // Delete Profile Button
             if (profile.id != 0 && !isStrictActive) {
                 Spacer(modifier = Modifier.height(8.dp))
                 OutlinedButton(
                     onClick = { viewModel.delete(onBack) },
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = ButtonDefaults.outlinedButtonColors(
                         contentColor = MaterialTheme.colorScheme.error
                     ),
@@ -502,8 +489,6 @@ fun ProfileEditorScreen(
             Spacer(modifier = Modifier.height(24.dp))
         }
     }
-
-    // ── Dialogs ─────────────────────────────────────────────────────────────
 
     // App Picker Dialog
     if (ui.appPickerOpen) {

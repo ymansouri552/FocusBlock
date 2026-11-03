@@ -12,7 +12,15 @@ Android app blocker with scheduled blocks and Strict Mode.
 
 ## Core concepts
 - **Profile**: name, blocked apps (package names), schedule(s), strict flag, enabled flag.
-- **Schedule types**: Recurring (days of week + start/end time, supports midnight crossing), One-off (start/end date-time), Quick block (countdown).
+- **Schedule types**:
+  - **Recurring / Time Window**: days of week + start/end time, supports overnight/midnight crossing.
+  - **Hourly**: hourly quota window (resets at the top of each hour `:00`).
+  - **Daily**: full-day quota window (resets every midnight `00:00`).
+  - **One-off**: start/end date-time window.
+  - **Quick block**: instant countdown timer.
+- **Blocking modes (v3)**:
+  - **Static Block**: immediately blocks targeted apps for the entire duration of the schedule.
+  - **Usage Limit (App Quota)**: allows usage of targeted apps up to a configured duration limit (e.g., 15 minutes), after which apps are dynamically blocked until the evaluation window ends/resets. Configurable as Per-App or Combined profile budget.
 - **Strict Mode**: once active, the profile cannot be deactivated, edited, shortened, or deleted until its end time. Adding apps or extending the end time is allowed.
 
 ## Strict Mode enforcement (v1)

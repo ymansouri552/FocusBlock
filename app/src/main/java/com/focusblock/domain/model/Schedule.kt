@@ -7,10 +7,29 @@ import java.time.ZoneId
 import java.time.ZonedDateTime
 import java.time.temporal.ChronoUnit
 
-enum class ScheduleType { RECURRING, ONE_OFF, QUICK }
+enum class ScheduleType {
+    RECURRING, // Specific Time Window (e.g. 08:00 - 12:00) with daysOfWeek
+    HOURLY,    // Every hour (resets at :00) with daysOfWeek (or all days)
+    DAILY,     // Every day (resets at midnight) with daysOfWeek (or all days)
+    ONE_OFF,   // Specific date-time range
+    QUICK      // Countdown block
+}
+
+enum class ScheduleMode {
+    BLOCK,       // Static full block during the window
+    USAGE_LIMIT  // Allowed up to usageLimitMinutes, then blocked for the remainder of the window
+}
+
+enum class LimitScope {
+    PER_APP,   // Each app in profile gets the quota individually
+    COMBINED   // All apps in profile share the quota
+}
 
 data class Schedule(
     val type: ScheduleType = ScheduleType.RECURRING,
+    val mode: ScheduleMode = ScheduleMode.BLOCK,
+    val usageLimitMinutes: Int = 0,
+    val limitScope: LimitScope = LimitScope.PER_APP,
     val daysOfWeek: Set<Int> = emptySet(),
     val startTime: LocalTime? = null,
     val endTime: LocalTime? = null,
@@ -22,6 +41,9 @@ data class Schedule(
     fun toStorageString(): String {
         val parts = mutableListOf<String>()
         parts.add("type=${type.name}")
+        parts.add("mode=${mode.name}")
+        parts.add("usageLimitMinutes=$usageLimitMinutes")
+        parts.add("limitScope=${limitScope.name}")
         parts.add("days=${daysOfWeek.joinToString(",")}")
         parts.add("startTime=${startTime ?: ""}")
         parts.add("endTime=${endTime ?: ""}")
@@ -36,6 +58,9 @@ data class Schedule(
         fun fromStorageString(s: String): Schedule? {
             return runCatching {
                 var type = ScheduleType.RECURRING
+                var mode = ScheduleMode.BLOCK
+                var usageLimitMinutes = 0
+                var limitScope = LimitScope.PER_APP
                 var days = emptySet<Int>()
                 var startTime: LocalTime? = null
                 var endTime: LocalTime? = null
@@ -49,8 +74,11 @@ data class Schedule(
                     val k = kv.substring(0, idx).trim()
                     val v = kv.substring(idx + 1).trim()
                     when (k) {
-                        "type" -> type = ScheduleType.valueOf(v)
-                        "days" -> days = if (v.isBlank()) emptySet() else v.split(",").map { it.toIntOrNull() }.filterNotNull().toSet()
+                        "type" -> type = runCatching { ScheduleType.valueOf(v) }.getOrDefault(ScheduleType.RECURRING)
+                        "mode" -> mode = runCatching { ScheduleMode.valueOf(v) }.getOrDefault(ScheduleMode.BLOCK)
+                        "usageLimitMinutes" -> usageLimitMinutes = v.toIntOrNull() ?: 0
+                        "limitScope" -> limitScope = runCatching { LimitScope.valueOf(v) }.getOrDefault(LimitScope.PER_APP)
+                        "days" -> days = if (v.isBlank()) emptySet() else v.split(",").mapNotNull { it.toIntOrNull() }.toSet()
                         "startTime" -> startTime = if (v.isBlank()) null else LocalTime.parse(v)
                         "endTime" -> endTime = if (v.isBlank()) null else LocalTime.parse(v)
                         "startDateTime" -> startDateTime = if (v.isBlank()) null else Instant.parse(v)
@@ -59,7 +87,19 @@ data class Schedule(
                         "quickStart" -> quickStart = if (v.isBlank()) null else Instant.parse(v)
                     }
                 }
-                Schedule(type, days, startTime, endTime, startDateTime, endDateTime, durationMinutes, quickStart)
+                Schedule(
+                    type = type,
+                    mode = mode,
+                    usageLimitMinutes = usageLimitMinutes,
+                    limitScope = limitScope,
+                    daysOfWeek = days,
+                    startTime = startTime,
+                    endTime = endTime,
+                    startDateTime = startDateTime,
+                    endDateTime = endDateTime,
+                    durationMinutes = durationMinutes,
+                    quickStartInstant = quickStart
+                )
             }.getOrNull()
         }
     }
@@ -68,7 +108,8 @@ data class Schedule(
 data class ActiveProfileInfo(
     val profile: Profile,
     val schedule: Schedule,
-    val endInstant: Instant
+    val endInstant: Instant,
+    val startInstant: Instant = Instant.EPOCH
 )
 
 object ScheduleEngine {
@@ -85,7 +126,7 @@ object ScheduleEngine {
         for (schedule in profile.schedules) {
             val window = activeWindow(schedule, now, localNow)
             if (window != null) {
-                return ActiveProfileInfo(profile, schedule, window.second)
+                return ActiveProfileInfo(profile, schedule, window.second, window.first)
             }
         }
         return null
@@ -95,27 +136,76 @@ object ScheduleEngine {
         return profiles.filter { it.enabled }.mapNotNull { activeProfile(it, now) }
     }
 
+    /**
+     * All active profiles with all matching active schedules (in case a profile has multiple active schedules).
+     */
+    fun allActiveProfileInfos(profiles: List<Profile>, now: Instant = Instant.now()): List<ActiveProfileInfo> {
+        val result = mutableListOf<ActiveProfileInfo>()
+        val localNow = now.atZone(zone).toLocalDateTime()
+        for (profile in profiles) {
+            if (!profile.enabled) continue
+            for (schedule in profile.schedules) {
+                val window = activeWindow(schedule, now, localNow)
+                if (window != null) {
+                    result.add(ActiveProfileInfo(profile, schedule, window.second, window.first))
+                }
+            }
+        }
+        return result
+    }
+
+    /**
+     * Packages that are blocked immediately by static (non-usage-limit) schedules.
+     */
+    fun staticBlockedPackages(profiles: List<Profile>, now: Instant = Instant.now()): Set<String> {
+        return activeProfiles(profiles, now)
+            .filter { it.schedule.mode == ScheduleMode.BLOCK }
+            .flatMap { it.profile.blockedApps }
+            .toSet()
+    }
+
     fun blockedPackages(profiles: List<Profile>, now: Instant = Instant.now()): Set<String> {
-        return activeProfiles(profiles, now).flatMap { it.profile.blockedApps }.toSet()
+        return staticBlockedPackages(profiles, now)
     }
 
     /**
      * Returns the (startInstant, endInstant) pair for [schedule] if it is currently active,
-     * or null otherwise.  Handles RECURRING (including overnight windows that cross midnight),
-     * ONE_OFF, and QUICK schedule types.
-     *
-     * For RECURRING schedules, both **today** (offset 0) and **yesterday** (offset -1) are
-     * checked.  This is essential for overnight windows whose end time falls on the *next*
-     * calendar day — e.g. a Monday 22:00 → Tuesday 02:00 window that is still active at
-     * 01:00 on Tuesday must be detected, which the old `recurringEnd()` missed because it
-     * only searched *forward* from today.
+     * or null otherwise.
      */
-    private fun activeWindow(schedule: Schedule, now: Instant, localNow: LocalDateTime): Pair<Instant, Instant>? {
+    fun activeWindow(schedule: Schedule, now: Instant, localNow: LocalDateTime): Pair<Instant, Instant>? {
         return when (schedule.type) {
             ScheduleType.RECURRING -> activeRecurringWindow(schedule, localNow)
+            ScheduleType.HOURLY -> activeHourlyWindow(schedule, localNow)
+            ScheduleType.DAILY -> activeDailyWindow(schedule, localNow)
             ScheduleType.ONE_OFF -> oneOffWindow(schedule, now)
             ScheduleType.QUICK -> quickWindow(schedule, now)
         }
+    }
+
+    private fun activeHourlyWindow(schedule: Schedule, localNow: LocalDateTime): Pair<Instant, Instant>? {
+        val days = schedule.daysOfWeek
+        val today = localNow.toLocalDate()
+        val calendarDay = (today.dayOfWeek.value % 7) + 1
+        if (days.isNotEmpty() && !days.contains(calendarDay)) return null
+
+        val startLocal = localNow.truncatedTo(ChronoUnit.HOURS)
+        val endLocal = startLocal.plusHours(1)
+        val startInstant = startLocal.atZone(zone).toInstant()
+        val endInstant = endLocal.atZone(zone).toInstant()
+        return startInstant to endInstant
+    }
+
+    private fun activeDailyWindow(schedule: Schedule, localNow: LocalDateTime): Pair<Instant, Instant>? {
+        val days = schedule.daysOfWeek
+        val today = localNow.toLocalDate()
+        val calendarDay = (today.dayOfWeek.value % 7) + 1
+        if (days.isNotEmpty() && !days.contains(calendarDay)) return null
+
+        val startLocal = today.atStartOfDay()
+        val endLocal = today.plusDays(1).atStartOfDay()
+        val startInstant = startLocal.atZone(zone).toInstant()
+        val endInstant = endLocal.atZone(zone).toInstant()
+        return startInstant to endInstant
     }
 
     private fun activeRecurringWindow(schedule: Schedule, localNow: LocalDateTime): Pair<Instant, Instant>? {
@@ -131,13 +221,11 @@ object ScheduleEngine {
         // Check yesterday (offset -1) then today (offset 0) to catch overnight windows.
         for (offset in -1L..0L) {
             val candidateDate = today.plusDays(offset)
-            // Convert ISO day-of-week (1=Monday) to Calendar convention (1=Sunday)
             val calendarDay = (candidateDate.dayOfWeek.value % 7) + 1
             if (!days.contains(calendarDay)) continue
 
             val startInstant = candidateDate.atTime(startTime).atZone(zone).toInstant()
             val endInstant = if (endTime.isBefore(startTime)) {
-                // endTime is on the *next* day (overnight window)
                 candidateDate.plusDays(1).atTime(endTime).atZone(zone).toInstant()
             } else {
                 candidateDate.atTime(endTime).atZone(zone).toInstant()

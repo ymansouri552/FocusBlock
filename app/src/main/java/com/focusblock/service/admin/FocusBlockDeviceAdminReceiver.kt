@@ -40,7 +40,7 @@ class FocusBlockDeviceAdminReceiver : DeviceAdminReceiver() {
         }.getOrDefault(false)
 
         return if (isIndependentArmed || isStrictProfileActive) {
-            "Strict Mode is currently ARMED under active terms! Disabling Device Administration is prohibited until terms expire."
+            "Strict Mode is currently active under committed terms! Disabling Device Administration is prohibited until terms expire."
         } else {
             "Disabling device administration will allow FocusBlock to be uninstalled and strict blocks to be bypassed. Keep it enabled while strict mode or any strict profile is active."
         }

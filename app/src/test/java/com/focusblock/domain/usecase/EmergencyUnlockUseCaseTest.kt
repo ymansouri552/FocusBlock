@@ -5,6 +5,7 @@ import androidx.test.core.app.ApplicationProvider
 import com.focusblock.data.local.datastore.SettingsDataStore
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.model.StrictTermType
+import com.focusblock.testing.createTestSettingsDataStore
 import kotlinx.coroutines.runBlocking
 import org.junit.Before
 import org.junit.Test
@@ -29,7 +30,7 @@ class EmergencyUnlockUseCaseTest {
     @Before
     fun setup() {
         context = ApplicationProvider.getApplicationContext()
-        settingsDataStore = SettingsDataStore(context)
+        settingsDataStore = createTestSettingsDataStore(context)
         useCase = EmergencyUnlockUseCase(settingsDataStore)
         StrictModeRules.independentState = StrictModeState()
     }
@@ -109,6 +110,46 @@ class EmergencyUnlockUseCaseTest {
 
         assertIs<EmergencyUnlockStatus.Waiting>(status)
         assertEquals(870L, status.remainingSeconds)
+    }
+
+    @Test
+    fun arming_a_new_strict_term_discards_a_pending_request(): Unit = runBlocking {
+        val requestTime = Instant.parse("2026-10-30T10:00:00Z")
+        val startElapsed = 1_000_000L
+        settingsDataStore.setEmergencyUnlockEnabled(true)
+        settingsDataStore.setEmergencyUnlockMinutes(15)
+
+        useCase.requestUnlock(requestTime, startElapsed, bootCount)
+        assertIs<EmergencyUnlockStatus.Waiting>(
+            useCase.getStatus(requestTime, startElapsed, bootCount)
+        )
+
+        settingsDataStore.armStrictMode(
+            StrictTermType.HOURS_4,
+            requestTime.plus(Duration.ofHours(4)),
+            requestTime,
+            startElapsed,
+            bootCount
+        )
+
+        assertIs<EmergencyUnlockStatus.NotRequested>(
+            useCase.getStatus(requestTime, startElapsed, bootCount)
+        )
+    }
+
+    @Test
+    fun disarming_strict_mode_discards_a_pending_request(): Unit = runBlocking {
+        val requestTime = Instant.parse("2026-10-30T10:00:00Z")
+        val startElapsed = 1_000_000L
+        settingsDataStore.setEmergencyUnlockEnabled(true)
+        settingsDataStore.setEmergencyUnlockMinutes(15)
+
+        useCase.requestUnlock(requestTime, startElapsed, bootCount)
+        settingsDataStore.disarmStrictMode()
+
+        assertIs<EmergencyUnlockStatus.NotRequested>(
+            useCase.getStatus(requestTime, startElapsed, bootCount)
+        )
     }
 
     @Test

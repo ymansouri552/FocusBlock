@@ -69,7 +69,7 @@ fun StrictTermsDialog(
     val customColors = LocalCustomColors.current
     var selectedTerm by remember { mutableStateOf(StrictTermType.HOURS_24) }
 
-    // Custom date & time state
+    // Custom date and time state
     val tomorrow = remember { LocalDate.now().plusDays(1) }
     var customDate by remember { mutableStateOf(tomorrow) }
     var customTime by remember { mutableStateOf(LocalTime.of(8, 0)) }
@@ -82,16 +82,16 @@ fun StrictTermsDialog(
                 horizontalArrangement = Arrangement.spacedBy(10.dp)
             ) {
                 Surface(
-                    shape = RoundedCornerShape(10.dp),
+                    shape = RoundedCornerShape(8.dp),
                     color = customColors.strictContainer,
-                    modifier = Modifier.size(38.dp)
+                    modifier = Modifier.size(36.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Icon(
                             imageVector = Icons.Default.Security,
                             contentDescription = null,
                             tint = customColors.strictAmber,
-                            modifier = Modifier.size(22.dp)
+                            modifier = Modifier.size(20.dp)
                         )
                     }
                 }
@@ -123,15 +123,15 @@ fun StrictTermsDialog(
                     color = MaterialTheme.colorScheme.onSurfaceVariant
                 )
 
-                // ── Presets List ─────────────────────────────────────────────
+                // Presets List
                 val presets = listOf(
-                    StrictTermType.HOURS_4 to "Focus Sprint · 4h lock",
-                    StrictTermType.HOURS_8 to "Workday · 8h lock",
-                    StrictTermType.HOURS_12 to "Half Day · 12h lock",
-                    StrictTermType.HOURS_24 to "1 Full Day · 24h discipline",
-                    StrictTermType.DAYS_3 to "3 Days · Extended reset",
-                    StrictTermType.DAYS_7 to "1 Week · Habit transformation",
-                    StrictTermType.UNTIL_DATE_TIME to "Custom Date & Time",
+                    StrictTermType.HOURS_4 to "Focus Sprint: 4-hour commitment",
+                    StrictTermType.HOURS_8 to "Workday: 8-hour commitment",
+                    StrictTermType.HOURS_12 to "Half Day: 12-hour commitment",
+                    StrictTermType.HOURS_24 to "Full Day: 24-hour commitment",
+                    StrictTermType.DAYS_3 to "Extended Reset: 3-day commitment",
+                    StrictTermType.DAYS_7 to "Habit Transformation: 7-day commitment",
+                    StrictTermType.UNTIL_DATE_TIME to "Custom Date and Time",
                     StrictTermType.ONGOING to "Ongoing Commitment"
                 )
 
@@ -140,9 +140,9 @@ fun StrictTermsDialog(
                     OutlinedCard(
                         onClick = { selectedTerm = term },
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = CardDefaults.outlinedCardColors(
-                            containerColor = if (isSelected) customColors.strictContainer.copy(alpha = 0.35f)
+                            containerColor = if (isSelected) customColors.strictContainer.copy(alpha = 0.4f)
                             else MaterialTheme.colorScheme.surface
                         ),
                         border = BorderStroke(
@@ -159,14 +159,14 @@ fun StrictTermsDialog(
                             Surface(
                                 shape = CircleShape,
                                 color = if (isSelected) customColors.strictAmber else MaterialTheme.colorScheme.surfaceContainerHigh,
-                                modifier = Modifier.size(24.dp)
+                                modifier = Modifier.size(22.dp)
                             ) {
                                 Box(contentAlignment = Alignment.Center) {
                                     if (isSelected) {
                                         Icon(
                                             imageVector = Icons.Default.CheckCircle,
                                             contentDescription = null,
-                                            tint = Color.Black,
+                                            tint = customColors.strictContainer,
                                             modifier = Modifier.size(16.dp)
                                         )
                                     }
@@ -192,11 +192,11 @@ fun StrictTermsDialog(
                     }
                 }
 
-                // ── Custom Date/Time Pickers (shown if UNTIL_DATE_TIME selected) ──
+                // Custom Date and Time Pickers
                 if (selectedTerm == StrictTermType.UNTIL_DATE_TIME) {
                     Card(
                         modifier = Modifier.fillMaxWidth(),
-                        shape = RoundedCornerShape(12.dp),
+                        shape = RoundedCornerShape(10.dp),
                         colors = CardDefaults.cardColors(
                             containerColor = MaterialTheme.colorScheme.surfaceContainerHigh
                         )
@@ -262,10 +262,10 @@ fun StrictTermsDialog(
                     }
                 }
 
-                // ── Strict Rules Commitment Card ──────────────────────────────
+                // Strict Rules Commitment Card
                 Card(
                     modifier = Modifier.fillMaxWidth(),
-                    shape = RoundedCornerShape(12.dp),
+                    shape = RoundedCornerShape(10.dp),
                     colors = CardDefaults.cardColors(
                         containerColor = customColors.strictContainer.copy(alpha = 0.5f)
                     ),
@@ -276,15 +276,14 @@ fun StrictTermsDialog(
                         verticalArrangement = Arrangement.spacedBy(4.dp)
                     ) {
                         Text(
-                            text = "STRICT COMMITMENT RULES",
+                            text = "Strict Commitment Rules",
                             style = MaterialTheme.typography.labelSmall,
                             fontWeight = FontWeight.Bold,
-                            color = customColors.strictAmber,
-                            letterSpacing = 0.8.sp
+                            color = customColors.strictAmber
                         )
                         Spacer(modifier = Modifier.height(2.dp))
                         Text(
-                            text = "• Recurring profiles stay locked 24/7 even between sessions.",
+                            text = "• Recurring profiles stay locked continuously even between sessions.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
@@ -294,17 +293,17 @@ fun StrictTermsDialog(
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "• Blocked apps cannot be removed (only adding apps allowed).",
+                            text = "• Blocked apps cannot be removed (adding more apps is allowed).",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "• Device Administrator blocks app uninstall.",
+                            text = "• Device Administrator blocks app uninstallation.",
                             style = MaterialTheme.typography.bodySmall,
                             color = MaterialTheme.colorScheme.onSurface
                         )
                         Text(
-                            text = "• Cannot be disarmed until the selected term expires.",
+                            text = "• Cannot be disarmed until the selected commitment expires.",
                             style = MaterialTheme.typography.bodySmall,
                             color = customColors.strictAmber,
                             fontWeight = FontWeight.SemiBold
@@ -325,9 +324,9 @@ fun StrictTermsDialog(
                 },
                 colors = ButtonDefaults.buttonColors(
                     containerColor = customColors.strictAmber,
-                    contentColor = Color.Black
+                    contentColor = customColors.strictContainer
                 ),
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(8.dp)
             ) {
                 Icon(Icons.Default.Lock, contentDescription = null, modifier = Modifier.size(16.dp))
                 Spacer(modifier = Modifier.width(6.dp))
