@@ -1,5 +1,6 @@
 package com.focusblock.ui.onboarding
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.layout.Arrangement
@@ -27,6 +28,7 @@ import androidx.compose.material3.Icon
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.Scaffold
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
@@ -44,7 +46,9 @@ import androidx.lifecycle.LifecycleEventObserver
 import androidx.lifecycle.compose.LocalLifecycleOwner
 import com.focusblock.R
 import com.focusblock.domain.usecase.SystemPermissionsState
-import com.focusblock.ui.theme.LocalCustomColors
+import com.focusblock.ui.components.SectionHeader
+import com.focusblock.ui.components.StampLabel
+import com.focusblock.ui.theme.LocalPledgePalette
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
@@ -55,7 +59,7 @@ fun OnboardingScreen(
     onFixDeviceAdmin: () -> Unit,
     onComplete: () -> Unit
 ) {
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
     val lifecycleOwner = LocalLifecycleOwner.current
 
     DisposableEffect(lifecycleOwner) {
@@ -75,16 +79,19 @@ fun OnboardingScreen(
             TopAppBar(
                 title = {
                     Text(
-                        text = stringResource(id = R.string.onboarding_title),
-                        style = MaterialTheme.typography.titleLarge,
-                        fontWeight = FontWeight.Bold
+                        text = "FOCUSBLOCK COVENANT",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        letterSpacing = 1.5.sp,
+                        color = palette.ink
                     )
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = palette.background
                 )
             )
-        }
+        },
+        containerColor = palette.background
     ) { innerPadding ->
         Column(
             modifier = Modifier
@@ -96,61 +103,63 @@ fun OnboardingScreen(
         ) {
             Column {
                 Text(
-                    text = "Permissions checklist",
-                    style = MaterialTheme.typography.headlineMedium,
+                    text = "VAULT INITIALIZATION",
+                    style = MaterialTheme.typography.headlineLarge,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground
+                    color = palette.ink,
+                    letterSpacing = (-0.5).sp
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = "Grant the permissions FocusBlock needs to enforce your focus sessions.",
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = customColors.subtleText
+                    text = "FocusBlock requires local Android system permissions to enforce your blocking contracts and tamper seals.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.inkSecondary,
+                    lineHeight = 22.sp
                 )
 
                 Spacer(modifier = Modifier.height(28.dp))
 
                 // Single checklist card with hairline separators
-                Column(
-                    modifier = Modifier
-                        .fillMaxWidth()
-                        .clip(RoundedCornerShape(14.dp))
-                        .background(MaterialTheme.colorScheme.surface)
-                        .border(1.dp, customColors.cardBorder, RoundedCornerShape(14.dp))
-                        .padding(horizontal = 16.dp, vertical = 8.dp)
+                Surface(
+                    modifier = Modifier.fillMaxWidth(),
+                    shape = RoundedCornerShape(2.dp),
+                    color = palette.surface,
+                    border = BorderStroke(1.5.dp, palette.border)
                 ) {
-                    // Item 1: Accessibility Service (Required)
-                    PermissionChecklistItem(
-                        title = stringResource(id = R.string.perm_accessibility),
-                        tag = "Required",
-                        description = stringResource(id = R.string.perm_accessibility_summary),
-                        isGranted = permissionsState.isAccessibilityGranted,
-                        actionLabel = "Enable",
-                        onAction = onFixAccessibility
-                    )
+                    Column(modifier = Modifier.padding(16.dp)) {
+                        // Item 1: Accessibility Service (Required)
+                        PermissionChecklistItem(
+                            title = "ACCESSIBILITY ENFORCER",
+                            tag = "MANDATORY",
+                            description = stringResource(id = R.string.perm_accessibility_summary),
+                            isGranted = permissionsState.isAccessibilityGranted,
+                            actionLabel = "ENABLE",
+                            onAction = onFixAccessibility
+                        )
 
-                    HorizontalDivider(color = customColors.cardBorder, thickness = 1.dp)
+                        HorizontalDivider(color = palette.hairline, thickness = 1.dp, modifier = Modifier.padding(vertical = 12.dp))
 
-                    // Item 2: Device Administrator (Optional / Strict Mode)
-                    PermissionChecklistItem(
-                        title = stringResource(id = R.string.perm_device_admin),
-                        tag = "Strict Mode",
-                        description = stringResource(id = R.string.perm_device_admin_summary),
-                        isGranted = permissionsState.isDeviceAdminGranted,
-                        actionLabel = "Activate",
-                        onAction = onFixDeviceAdmin
-                    )
+                        // Item 2: Device Administrator (Optional / Strict Mode)
+                        PermissionChecklistItem(
+                            title = "DEVICE ADMINISTRATOR",
+                            tag = "STRICT PROTECTION",
+                            description = stringResource(id = R.string.perm_device_admin_summary),
+                            isGranted = permissionsState.isDeviceAdminGranted,
+                            actionLabel = "ACTIVATE",
+                            onAction = onFixDeviceAdmin
+                        )
+                    }
                 }
 
                 Spacer(modifier = Modifier.height(20.dp))
 
                 // Quiet local data notice
                 Text(
-                    text = "All data stays local on your device. FocusBlock does not collect or transmit screen content or personal usage logs.",
+                    text = "All data stays local on your device. FocusBlock does not collect or transmit screen content, usage logs, or personal records.",
                     style = MaterialTheme.typography.bodySmall,
-                    color = customColors.subtleText
+                    color = palette.inkSecondary
                 )
             }
 
@@ -162,16 +171,17 @@ fun OnboardingScreen(
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(2.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent
                 )
             ) {
                 Text(
-                    text = "Get started",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = "ENTER VAULT",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
                 )
             }
         }
@@ -187,12 +197,10 @@ private fun PermissionChecklistItem(
     actionLabel: String,
     onAction: () -> Unit
 ) {
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
 
     Row(
-        modifier = Modifier
-            .fillMaxWidth()
-            .padding(vertical = 16.dp),
+        modifier = Modifier.fillMaxWidth(),
         verticalAlignment = Alignment.CenterVertically
     ) {
         Column(modifier = Modifier.weight(1f)) {
@@ -200,53 +208,55 @@ private fun PermissionChecklistItem(
                 Text(
                     text = title,
                     style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    fontWeight = FontWeight.Bold,
+                    color = palette.ink,
+                    letterSpacing = 0.5.sp
                 )
                 Spacer(modifier = Modifier.width(8.dp))
                 Text(
                     text = tag,
                     style = MaterialTheme.typography.labelSmall,
-                    color = if (isGranted) customColors.positive else customColors.subtleText
+                    color = if (isGranted) palette.accent else palette.inkSecondary,
+                    fontWeight = FontWeight.Bold
                 )
             }
             Spacer(modifier = Modifier.height(4.dp))
             Text(
                 text = description,
                 style = MaterialTheme.typography.bodySmall,
-                color = customColors.subtleText
+                color = palette.inkSecondary
             )
         }
 
         Spacer(modifier = Modifier.width(12.dp))
 
         if (isGranted) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                Icon(
-                    imageVector = Icons.Default.CheckCircle,
-                    contentDescription = "Granted",
-                    tint = customColors.positive,
-                    modifier = Modifier.size(20.dp)
-                )
-                Spacer(modifier = Modifier.width(4.dp))
+            Surface(
+                color = palette.accent,
+                shape = RoundedCornerShape(2.dp)
+            ) {
                 Text(
-                    text = "Ready",
-                    style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = customColors.positive
+                    text = "READY",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.onAccent,
+                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
                 )
             }
         } else {
             OutlinedButton(
                 onClick = onAction,
-                shape = RoundedCornerShape(8.dp),
+                shape = RoundedCornerShape(2.dp),
+                border = BorderStroke(1.5.dp, palette.border),
                 contentPadding = PaddingValues(horizontal = 14.dp, vertical = 8.dp),
                 modifier = Modifier.height(40.dp)
             ) {
                 Text(
                     text = actionLabel,
                     style = MaterialTheme.typography.labelMedium,
-                    fontWeight = FontWeight.Bold
+                    fontWeight = FontWeight.Bold,
+                    color = palette.ink,
+                    letterSpacing = 0.8.sp
                 )
             }
         }

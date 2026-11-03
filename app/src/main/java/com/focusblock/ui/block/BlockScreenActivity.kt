@@ -43,8 +43,11 @@ import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
 import com.focusblock.R
 import com.focusblock.data.local.datastore.SettingsDataStore
+import com.focusblock.ui.components.StampLabel
 import com.focusblock.ui.theme.FocusBlockTheme
-import com.focusblock.ui.theme.LocalCustomColors
+import com.focusblock.ui.theme.HeroNumericStyle
+import com.focusblock.ui.theme.LocalPledgePalette
+import com.focusblock.ui.theme.StampTextStyle
 import com.focusblock.ui.theme.tabular
 import dagger.hilt.android.AndroidEntryPoint
 import kotlinx.coroutines.delay
@@ -64,7 +67,6 @@ class BlockScreenActivity : ComponentActivity() {
         val isStrict = intent.getBooleanExtra(EXTRA_IS_STRICT, false)
         val blockReason = intent.getStringExtra(EXTRA_BLOCK_REASON)
 
-        // Back sends the user home instead of returning to the blocked app.
         onBackPressedDispatcher.addCallback(
             this,
             object : OnBackPressedCallback(enabled = true) {
@@ -120,7 +122,7 @@ fun BlockScreen(
     blockReason: String? = null,
     onGoHome: () -> Unit
 ) {
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
     var remainingMs by remember(timeRemainingMs) { mutableLongStateOf(timeRemainingMs) }
 
     LaunchedEffect(timeRemainingMs) {
@@ -136,7 +138,7 @@ fun BlockScreen(
     Box(
         modifier = Modifier
             .fillMaxSize()
-            .background(MaterialTheme.colorScheme.background)
+            .background(palette.background)
             .padding(horizontal = 24.dp, vertical = 32.dp)
     ) {
         Column(
@@ -144,108 +146,102 @@ fun BlockScreen(
             verticalArrangement = Arrangement.SpaceBetween,
             horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            // Header: Quiet identification
-            Text(
-                text = stringResource(id = R.string.app_name),
-                style = MaterialTheme.typography.labelMedium,
-                color = customColors.subtleText,
-                letterSpacing = 1.sp
-            )
+            // Header
+            Row(
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.Center,
+                modifier = Modifier.padding(top = 8.dp)
+            ) {
+                Text(
+                    text = "FOCUSBLOCK VAULT",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.inkSecondary,
+                    letterSpacing = 2.0.sp
+                )
+            }
 
-            // Center: The signature block moment — bold architectural typography & prominent timer
+            // Center Block Focal Point
             Column(
                 modifier = Modifier.fillMaxWidth(),
                 horizontalAlignment = Alignment.CenterHorizontally
             ) {
+                if (isStrict) {
+                    StampLabel(
+                        text = "ACCESS SEALED",
+                        rotation = -6f
+                    )
+                    Spacer(modifier = Modifier.height(24.dp))
+                }
+
                 Text(
-                    text = appName,
-                    style = MaterialTheme.typography.headlineLarge,
+                    text = appName.uppercase(),
+                    style = MaterialTheme.typography.displayMedium,
                     fontWeight = FontWeight.Bold,
-                    color = MaterialTheme.colorScheme.onBackground,
-                    textAlign = TextAlign.Center
+                    color = palette.ink,
+                    textAlign = TextAlign.Center,
+                    letterSpacing = (-0.5).sp
                 )
 
-                Spacer(modifier = Modifier.height(6.dp))
+                Spacer(modifier = Modifier.height(8.dp))
 
                 Text(
-                    text = if (blockReason != null) {
-                        blockReason
-                    } else {
-                        "Blocked by $profileName"
-                    },
-                    style = MaterialTheme.typography.bodyLarge,
-                    color = customColors.subtleText,
-                    textAlign = TextAlign.Center
+                    text = if (blockReason != null) blockReason.uppercase() else "RESTRICTED BY $profileName".uppercase(),
+                    style = MaterialTheme.typography.labelMedium,
+                    color = palette.inkSecondary,
+                    textAlign = TextAlign.Center,
+                    letterSpacing = 1.0.sp
                 )
 
-                Spacer(modifier = Modifier.height(40.dp))
+                Spacer(modifier = Modifier.height(32.dp))
 
-                // Prominent timer as the focal point
+                // Prominent Tabular Hero Timer
                 if (remainingMs > 0) {
                     Text(
                         text = formatTime(remainingMs),
-                        style = MaterialTheme.typography.displayLarge.tabular(),
-                        fontWeight = FontWeight.Bold,
-                        color = if (isStrict) customColors.strictAmber else MaterialTheme.colorScheme.primary,
+                        style = HeroNumericStyle,
+                        color = if (isStrict) palette.stamp else palette.accent,
                         textAlign = TextAlign.Center
                     )
 
-                    Spacer(modifier = Modifier.height(8.dp))
+                    Spacer(modifier = Modifier.height(6.dp))
 
                     Text(
-                        text = if (blockReason != null) "Quota resets in" else stringResource(id = R.string.block_time_remaining),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = customColors.subtleText,
-                        textAlign = TextAlign.Center
+                        text = if (blockReason != null) "QUOTA RESETS AT END OF WINDOW" else "REMAINING UNTIL VAULT REOPENS",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = palette.inkSecondary,
+                        textAlign = TextAlign.Center,
+                        letterSpacing = 1.0.sp
                     )
                 }
 
                 if (isStrict) {
                     Spacer(modifier = Modifier.height(24.dp))
-                    Surface(
-                        shape = RoundedCornerShape(8.dp),
-                        color = customColors.strictContainer,
-                        border = BorderStroke(1.dp, customColors.strictAmber.copy(alpha = 0.5f))
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(horizontal = 14.dp, vertical = 8.dp),
-                            verticalAlignment = Alignment.CenterVertically,
-                            horizontalArrangement = Arrangement.Center
-                        ) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = customColors.strictAmber,
-                                modifier = Modifier.size(14.dp)
-                            )
-                            Spacer(modifier = Modifier.width(6.dp))
-                            Text(
-                                text = "Strict Mode active · Cannot be unblocked",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.SemiBold,
-                                color = customColors.strictOnContainer
-                            )
-                        }
-                    }
+                    Text(
+                        text = "Strict Mode Pledge Enforced · Config Tamper Proof",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.stamp,
+                        fontWeight = FontWeight.SemiBold
+                    )
                 }
             }
 
-            // Bottom action: single, prominent button
+            // Bottom action
             Button(
                 onClick = onGoHome,
                 modifier = Modifier
                     .fillMaxWidth()
                     .height(52.dp),
-                shape = RoundedCornerShape(10.dp),
+                shape = RoundedCornerShape(2.dp),
                 colors = ButtonDefaults.buttonColors(
-                    containerColor = MaterialTheme.colorScheme.primary,
-                    contentColor = MaterialTheme.colorScheme.onPrimary
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent
                 )
             ) {
                 Text(
-                    text = stringResource(id = R.string.block_return_home),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold
+                    text = "RETURN TO HOME",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
                 )
             }
         }

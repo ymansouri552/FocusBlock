@@ -6,6 +6,7 @@ import com.focusblock.data.local.datastore.SettingsDataStore
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.model.StrictTermType
+import com.focusblock.domain.repository.BlockLogRepository
 import com.focusblock.domain.usecase.BlockedAppsUseCase
 import com.focusblock.domain.usecase.EmergencyUnlockUseCase
 import com.focusblock.domain.usecase.GetProfilesUseCase
@@ -20,10 +21,31 @@ import kotlinx.coroutines.flow.MutableStateFlow
 import kotlinx.coroutines.flow.SharingStarted
 import kotlinx.coroutines.flow.StateFlow
 import kotlinx.coroutines.flow.asStateFlow
+import kotlinx.coroutines.flow.map
 import kotlinx.coroutines.flow.stateIn
 import kotlinx.coroutines.launch
 import java.time.Instant
+import java.time.LocalDate
+import java.time.ZoneId
+import com.focusblock.domain.model.BlockLog
+import kotlinx.coroutines.flow.flowOf
 import javax.inject.Inject
+
+class EmptyBlockLogRepository : BlockLogRepository {
+    override fun insert(log: BlockLog): Long = 0L
+    override fun getLogsForDay(day: Long) = flowOf(emptyList<BlockLog>())
+    override fun getLogsForPackage(packageName: String) = flowOf(emptyList<BlockLog>())
+    override fun getAllLogs() = flowOf(emptyList<BlockLog>())
+    override fun deleteLogsOlderThan(thresholdMs: Long): Int = 0
+    override fun clearAllLogs(): Int = 0
+}
+
+data class FocusStats(
+    val focusedHoursThisWeek: Float = 0f,
+    val dailyHours: List<Float> = listOf(0f, 0f, 0f, 0f, 0f, 0f, 0f),
+    val streakDays: Int = 0,
+    val blockedResisted: Int = 0
+)
 
 @HiltViewModel
 class HomeViewModel @Inject constructor(
@@ -34,6 +56,7 @@ class HomeViewModel @Inject constructor(
     private val settingsDataStore: SettingsDataStore,
     private val emergencyUnlockUseCase: EmergencyUnlockUseCase,
     private val trustedClock: TrustedClock,
+    private val blockLogRepository: BlockLogRepository = EmptyBlockLogRepository(),
     val permissionChecker: SystemPermissionChecker
 ) : ViewModel() {
 
@@ -44,6 +67,42 @@ class HomeViewModel @Inject constructor(
 
     val strictModeState: StateFlow<StrictModeState> = settingsDataStore.strictModeState
         .stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), StrictModeState())
+
+    // ─────────────────────────────────────────────────────────────────────────────
+    // Minimal local tracking for stats strip: focused hours, streak, and blocked attempts
+    // ─────────────────────────────────────────────────────────────────────────────
+    val focusStats: StateFlow<FocusStats> = blockLogRepository.getAllLogs().map { logs ->
+        val zone = ZoneId.systemDefault()
+        val today = LocalDate.now(zone)
+
+        val logsByDate = logs.groupBy {
+            Instant.ofEpochMilli(it.timestamp).atZone(zone).toLocalDate()
+        }
+
+        val past7Days = (6 downTo 0).map { today.minusDays(it.toLong()) }
+        val dailyHours = past7Days.map { date ->
+            val count = logsByDate[date]?.size ?: 0
+            if (count > 0) (count * 0.75f).coerceIn(0.5f, 8.0f) else 0f
+        }
+        val totalWeekHours = dailyHours.sum()
+
+        var streak = 0
+        var checkDate = today
+        if (!logsByDate.containsKey(today)) {
+            checkDate = today.minusDays(1)
+        }
+        while (logsByDate.containsKey(checkDate)) {
+            streak++
+            checkDate = checkDate.minusDays(1)
+        }
+
+        FocusStats(
+            focusedHoursThisWeek = totalWeekHours,
+            dailyHours = dailyHours,
+            streakDays = streak,
+            blockedResisted = logs.size
+        )
+    }.stateIn(viewModelScope, SharingStarted.WhileSubscribed(5_000), FocusStats())
 
     private val _permissionsState = MutableStateFlow(permissionChecker.checkPermissions())
     val permissionsState: StateFlow<SystemPermissionsState> = _permissionsState.asStateFlow()

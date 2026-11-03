@@ -1,19 +1,22 @@
 package com.focusblock.ui.home
 
+import androidx.compose.foundation.BorderStroke
 import androidx.compose.foundation.background
 import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
+import androidx.compose.foundation.gestures.detectTapGestures
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.ExperimentalLayoutApi
 import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
-import androidx.compose.foundation.layout.heightIn
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
@@ -22,11 +25,11 @@ import androidx.compose.foundation.lazy.itemsIndexed
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
-import androidx.compose.material.icons.filled.Lock
 import androidx.compose.material.icons.filled.Settings
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.AlertDialog
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.FilterChip
 import androidx.compose.material3.FilterChipDefaults
@@ -37,29 +40,37 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Switch
-import androidx.compose.material3.SwitchDefaults
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
+import androidx.compose.animation.core.Animatable
+import androidx.compose.animation.core.FastOutSlowInEasing
+import androidx.compose.animation.core.tween
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.DisposableEffect
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableFloatStateOf
 import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.rememberCoroutineScope
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
 import androidx.compose.ui.graphics.Color
+import androidx.compose.ui.hapticfeedback.HapticFeedbackType
+import androidx.compose.ui.input.pointer.pointerInput
 import androidx.compose.ui.platform.LocalContext
+import androidx.compose.ui.platform.LocalHapticFeedback
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
-import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.compose.ui.unit.sp
 import androidx.hilt.navigation.compose.hiltViewModel
 import androidx.lifecycle.Lifecycle
 import androidx.lifecycle.LifecycleEventObserver
@@ -69,14 +80,26 @@ import com.focusblock.R
 import com.focusblock.domain.model.ActiveProfileInfo
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.ScheduleEngine
-import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.StrictModeState
+import com.focusblock.domain.model.StrictTermType
 import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.SystemPermissionsState
-import com.focusblock.ui.profile.formatScheduleSummary
-import com.focusblock.ui.theme.LocalCustomColors
+import com.focusblock.ui.components.HoldButton
+import com.focusblock.ui.components.LedgerRow
+import com.focusblock.ui.components.SectionHeader
+import com.focusblock.ui.components.SevenDayBarChart
+import com.focusblock.ui.components.StampLabel
+import com.focusblock.ui.components.StatTile
+import com.focusblock.ui.components.StatusRing
+import com.focusblock.ui.components.StreakGrid
+import com.focusblock.ui.theme.CountdownNumericStyle
+import com.focusblock.ui.theme.HeroNumericStyle
+import com.focusblock.ui.theme.LocalPledgePalette
+import com.focusblock.ui.theme.StampTextStyle
 import com.focusblock.ui.theme.tabular
+import kotlinx.coroutines.Job
 import kotlinx.coroutines.delay
+import kotlinx.coroutines.launch
 import java.time.Duration
 import java.time.Instant
 
@@ -88,16 +111,17 @@ fun HomeScreen(
     onOpenSettings: () -> Unit,
     viewModel: HomeViewModel = hiltViewModel()
 ) {
+    val palette = LocalPledgePalette.current
     val ui by viewModel.ui.collectAsStateWithLifecycle()
     val profiles by viewModel.profiles.collectAsStateWithLifecycle()
     val blockedPackages by viewModel.blockedPackages.collectAsStateWithLifecycle()
     val strictModeState by viewModel.strictModeState.collectAsStateWithLifecycle()
     val permissionsState by viewModel.permissionsState.collectAsStateWithLifecycle()
+    val focusStats by viewModel.focusStats.collectAsStateWithLifecycle()
     val context = LocalContext.current
 
     var now by remember { mutableStateOf(Instant.now()) }
 
-    // Tick every second ONLY while an active session exists; otherwise update once a minute
     val isAnySessionActive = remember(profiles, strictModeState, now) {
         strictModeState.isEffectivelyActive(now) || ScheduleEngine.activeProfiles(profiles, now).isNotEmpty()
     }
@@ -150,46 +174,62 @@ fun HomeScreen(
         topBar = {
             TopAppBar(
                 title = {
-                    Text(
-                        text = stringResource(id = R.string.app_name),
-                        style = MaterialTheme.typography.titleLarge
-                    )
+                    Row(verticalAlignment = Alignment.CenterVertically) {
+                        Text(
+                            text = "FOCUSBLOCK",
+                            style = MaterialTheme.typography.titleMedium,
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 2.0.sp,
+                            color = palette.ink
+                        )
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "LEDGER",
+                            style = MaterialTheme.typography.labelSmall,
+                            color = palette.inkSecondary,
+                            letterSpacing = 1.2.sp
+                        )
+                    }
                 },
                 actions = {
                     IconButton(onClick = onOpenSettings) {
                         Icon(
                             imageVector = Icons.Default.Settings,
-                            contentDescription = stringResource(id = R.string.settings_title)
+                            contentDescription = stringResource(id = R.string.settings_title),
+                            tint = palette.ink
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.background
+                    containerColor = palette.background
                 )
             )
         },
-        snackbarHost = { SnackbarHost(snackbarHostState) }
+        snackbarHost = { SnackbarHost(snackbarHostState) },
+        containerColor = palette.background
     ) { innerPadding ->
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding),
-            contentPadding = PaddingValues(start = 20.dp, end = 20.dp, top = 8.dp, bottom = 40.dp),
-            verticalArrangement = Arrangement.spacedBy(24.dp)
+            contentPadding = PaddingValues(start = 16.dp, end = 16.dp, top = 8.dp, bottom = 48.dp),
+            verticalArrangement = Arrangement.spacedBy(20.dp)
         ) {
-            // Prime slot: Focus Status block owns the top of the screen (no card chrome)
+            // HERO STATUS OBJECT
             item {
-                FocusStatusBlock(
+                HomeStatusHero(
                     activeProfiles = activeProfiles,
+                    strictState = strictModeState,
                     now = now,
-                    blockedPackagesCount = blockedPackages.size
+                    blockedCount = blockedPackages.size,
+                    onDisarmStrict = { viewModel.disarmStrictMode() }
                 )
             }
 
-            // Collapsed single-line alert under status ONLY when something is broken; nothing when green
+            // PERMISSIONS NOTICE (ONLY WHEN BROKEN)
             if (permissionsState.hasAnyWarning) {
                 item {
-                    PermissionsWarningLine(
+                    HomePermissionsNotice(
                         permissionsState = permissionsState,
                         onFix = {
                             if (!permissionsState.isAccessibilityGranted) {
@@ -208,63 +248,73 @@ fun HomeScreen(
                 }
             }
 
-            // Quick durations: plain row of text buttons
+            // STATS STRIP: Focused hours, streak, blocked attempts
+            item {
+                StatsStrip(
+                    focusStats = focusStats
+                )
+            }
+
+            // QUICK TIMERS BAR (PRESS & HOLD SEGMENTS)
             if (profiles.isNotEmpty()) {
                 item {
-                    QuickStartBar(
-                        onSelectDuration = { duration ->
-                            preselectedQuickDuration = duration
-                            showQuickBlockDialog = true
-                        }
+                    Column {
+                        SectionHeader(
+                            title = "QUICK TIMERS",
+                            badgeText = "HOLD TO START"
+                        )
+                        Spacer(modifier = Modifier.height(8.dp))
+                        QuickHoldTimerRow(
+                            onSelectDuration = { duration ->
+                                preselectedQuickDuration = duration
+                                showQuickBlockDialog = true
+                            }
+                        )
+                    }
+                }
+            }
+
+            // STRICT MODE PLEDGE ENTRY (WHEN NOT ARMED)
+            if (!strictModeState.isEffectivelyActive(now) && !strictModeState.isArmed) {
+                item {
+                    StrictPledgePromoCard(
+                        onSignPledge = { showStrictTermsDialog = true }
                     )
                 }
             }
 
-            // Strict Mode: The single allowed bordered card when locked; clean text row when idle
+            // PROFILES SECTION HEADER
             item {
-                StrictModeSection(
-                    strictState = strictModeState,
-                    now = now,
-                    onActivate = { showStrictTermsDialog = true },
-                    onDisarm = { viewModel.disarmStrictMode() }
+                SectionHeader(
+                    title = "CONTRACTS & PROFILES",
+                    badgeText = "${profiles.size}",
+                    actionText = "+ NEW",
+                    onAction = onAddProfile
                 )
             }
 
-            // Profiles Header
-            item {
-                ProfilesHeader(
-                    count = profiles.size,
-                    onAddProfile = onAddProfile
-                )
-            }
-
-            // Profiles List: hairline-separated rows
+            // PROFILES LIST (LEDGER ROWS)
             if (profiles.isEmpty()) {
                 item {
-                    EmptyProfilesState(onCreateProfile = onAddProfile)
+                    EmptyProfilesLedger(onCreateProfile = onAddProfile)
                 }
             } else {
                 itemsIndexed(profiles, key = { _, profile -> profile.id }) { index, profile ->
                     val isActiveNow = ScheduleEngine.isActive(profile, now)
                     val isStrictActive = StrictModeRules.isStrictActive(profile, now)
-                    val activeInfo = ScheduleEngine.activeProfile(profile, now)
-                    val remainingMs = activeInfo?.let { Duration.between(now, it.endInstant).toMillis() }
 
-                    ProfileRow(
-                        profile = profile,
+                    LedgerRow(
+                        title = profile.name,
+                        schedule = profile.schedules.firstOrNull(),
+                        appCount = profile.blockedApps.size,
+                        isStrictLocked = isStrictActive,
                         isActiveNow = isActiveNow,
-                        isStrictActive = isStrictActive,
-                        activeInfo = activeInfo,
-                        remainingMs = remainingMs,
+                        enabled = profile.enabled,
                         showDivider = index < profiles.lastIndex,
                         onEdit = { onEditProfile(profile.id) },
                         onToggle = { enabled -> viewModel.toggleProfile(profile.id, enabled) }
                     )
                 }
-            }
-
-            item {
-                Spacer(modifier = Modifier.height(8.dp))
             }
         }
     }
@@ -292,376 +342,419 @@ fun HomeScreen(
     }
 }
 
-@Composable
-private fun FocusStatusBlock(
-    activeProfiles: List<ActiveProfileInfo>,
-    now: Instant,
-    blockedPackagesCount: Int
-) {
-    val customColors = LocalCustomColors.current
-    val hasActive = activeProfiles.isNotEmpty()
-    val isAnyStrict = StrictModeRules.independentState.isEffectivelyActive(now) ||
-        activeProfiles.any { it.profile.strict }
+// ─────────────────────────────────────────────────────────────────────────────
+// HERO OBJECT: Status Ring + Large Tabular Countdown + Pledge Label
+// ─────────────────────────────────────────────────────────────────────────────
 
-    if (hasActive) {
+@Composable
+private fun HomeStatusHero(
+    activeProfiles: List<ActiveProfileInfo>,
+    strictState: StrictModeState,
+    now: Instant,
+    blockedCount: Int,
+    onDisarmStrict: () -> Unit
+) {
+    val palette = LocalPledgePalette.current
+    val isStrictActive = strictState.isEffectivelyActive(now)
+    val isAnyProfileActive = activeProfiles.isNotEmpty()
+    val isSealed = isStrictActive || isAnyProfileActive
+
+    val title: String
+    val subtitle: String
+    val countdownText: String?
+
+    if (isStrictActive) {
+        val remainingMs = strictState.remainingMs(now)
+        title = "STRICT MODE ACTIVE"
+        subtitle = "${strictState.termType.label.uppercase()} PLEDGE · $blockedCount APPS LOCKED"
+        countdownText = remainingMs?.let { formatHeroTimer(it) } ?: "ONGOING"
+    } else if (isAnyProfileActive) {
         val nextEnding = activeProfiles.minByOrNull { it.endInstant }
         val remainingMs = nextEnding?.let { Duration.between(now, it.endInstant).toMillis() } ?: 0L
-        val stateColor = if (isAnyStrict) customColors.strictAmber else customColors.positive
-
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = if (isAnyStrict) "Strict Mode session" else "Focus session active",
-                style = MaterialTheme.typography.titleSmall,
-                fontWeight = FontWeight.SemiBold,
-                color = stateColor
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = formatTimer(remainingMs),
-                style = MaterialTheme.typography.displayLarge.tabular(),
-                fontWeight = FontWeight.Bold,
-                color = stateColor,
-                maxLines = 1
-            )
-            Spacer(modifier = Modifier.height(10.dp))
-            Text(
-                text = activeProfiles.joinToString(", ") { it.profile.name },
-                style = MaterialTheme.typography.bodyLarge,
-                fontWeight = FontWeight.Medium,
-                color = MaterialTheme.colorScheme.onBackground,
-                maxLines = 2,
-                overflow = TextOverflow.Ellipsis
-            )
-            Spacer(modifier = Modifier.height(2.dp))
-            Text(
-                text = "$blockedPackagesCount apps blocked",
-                style = MaterialTheme.typography.bodySmall,
-                color = customColors.subtleText
-            )
-        }
+        val profileNames = activeProfiles.joinToString(", ") { it.profile.name }
+        title = profileNames.uppercase()
+        subtitle = "$blockedCount APPS BLOCKED"
+        countdownText = formatHeroTimer(remainingMs)
     } else {
-        Column(modifier = Modifier.fillMaxWidth()) {
-            Text(
-                text = "Nothing is blocked",
-                style = MaterialTheme.typography.headlineMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onBackground
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-            Text(
-                text = "Start a timer or enable a profile to begin.",
-                style = MaterialTheme.typography.bodyMedium,
-                color = customColors.subtleText
-            )
-        }
-    }
-}
-
-@Composable
-private fun PermissionsWarningLine(
-    permissionsState: SystemPermissionsState,
-    onFix: () -> Unit
-) {
-    val message = when {
-        !permissionsState.isAccessibilityGranted -> "Accessibility is off · Tap to enable"
-        !permissionsState.isDeviceAdminGranted -> "Device admin is inactive · Tap to activate"
-        else -> "Battery optimization active · Tap to exempt"
+        title = "ALL APPS ACCESSIBLE"
+        subtitle = "SELECT A QUICK TIMER OR PROFILE"
+        countdownText = null
     }
 
-    Row(
+    Column(
         modifier = Modifier
             .fillMaxWidth()
-            .clickable(onClick = onFix)
-            .padding(vertical = 4.dp),
-        verticalAlignment = Alignment.CenterVertically
+            .padding(vertical = 12.dp),
+        horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Icon(
-            imageVector = Icons.Default.Warning,
-            contentDescription = null,
-            tint = MaterialTheme.colorScheme.error,
-            modifier = Modifier.size(16.dp)
+        // Vault Status Ring
+        StatusRing(
+            isSealed = isSealed,
+            title = title,
+            subtitle = subtitle,
+            countdownText = countdownText,
+            isStrict = isStrictActive,
+            size = 230.dp
         )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = message,
-            style = MaterialTheme.typography.bodySmall,
-            fontWeight = FontWeight.Medium,
-            color = MaterialTheme.colorScheme.error,
-            modifier = Modifier.weight(1f)
-        )
+
+        // Hero pledge badge under ring
+        if (isStrictActive) {
+            Spacer(modifier = Modifier.height(14.dp))
+            StampLabel(
+                text = "STRICT MODE · ${strictState.termType.label.uppercase()} PLEDGE",
+                rotation = 0f,
+                isSealed = true
+            )
+        } else if (strictState.isArmed && !isStrictActive) {
+            // Term expired
+            Spacer(modifier = Modifier.height(12.dp))
+            Button(
+                onClick = onDisarmStrict,
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent
+                )
+            ) {
+                Text("DISARM EXPIRED PLEDGE", fontWeight = FontWeight.Bold)
+            }
+        }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// STATS STRIP: 7-day focus bar chart, streak grid, blocked resisted
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-private fun QuickStartBar(
-    onSelectDuration: (Int) -> Unit
+private fun StatsStrip(
+    focusStats: FocusStats,
+    modifier: Modifier = Modifier
+) {
+    Column(modifier = modifier.fillMaxWidth()) {
+        SectionHeader(
+            title = "LEDGER METRICS"
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
+        ) {
+            // Tile 1: Focused Hours This Week
+            StatTile(
+                title = "FOCUSED",
+                value = "${String.format("%.1f", focusStats.focusedHoursThisWeek)}h",
+                modifier = Modifier.weight(1f)
+            ) {
+                SevenDayBarChart(
+                    dailyHours = focusStats.dailyHours,
+                    height = 24.dp
+                )
+            }
+
+            // Tile 2: Current Streak
+            StatTile(
+                title = "STREAK",
+                value = "${focusStats.streakDays}d",
+                modifier = Modifier.weight(1f)
+            ) {
+                StreakGrid(
+                    streakDays = focusStats.streakDays,
+                    totalSlots = 14
+                )
+            }
+
+            // Tile 3: Resisted Attempts
+            StatTile(
+                title = "RESISTED",
+                value = "${focusStats.blockedResisted}",
+                modifier = Modifier.weight(1f)
+            ) {
+                Text(
+                    text = "BLOCKS SHIELDED",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = LocalPledgePalette.current.inkSecondary
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// QUICK TIMERS: Press-and-hold square segments
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun QuickHoldTimerRow(
+    onSelectDuration: (Int) -> Unit,
+    modifier: Modifier = Modifier
 ) {
     val presets = listOf(15, 30, 45, 60, 120)
 
     Row(
-        modifier = Modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp),
-        verticalAlignment = Alignment.CenterVertically
+        modifier = modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         presets.forEach { minutes ->
-            TextButton(
-                onClick = { onSelectDuration(minutes) },
+            QuickTimerSegment(
+                minutes = minutes,
+                onConfirmed = { onSelectDuration(minutes) },
                 modifier = Modifier.weight(1f)
+            )
+        }
+    }
+}
+
+@Composable
+private fun QuickTimerSegment(
+    minutes: Int,
+    onConfirmed: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = LocalPledgePalette.current
+    val haptic = LocalHapticFeedback.current
+    val scope = rememberCoroutineScope()
+
+    var isPressed by remember { mutableStateOf(false) }
+    var holdJob by remember { mutableStateOf<Job?>(null) }
+    val fillProgress = remember { Animatable(0f) }
+
+    val label = if (minutes >= 60 && minutes % 60 == 0) "${minutes / 60}H" else "${minutes}M"
+
+    Box(
+        modifier = modifier
+            .height(46.dp)
+            .clip(RoundedCornerShape(2.dp))
+            .background(palette.surface)
+            .border(1.5.dp, if (isPressed) palette.border else palette.hairline, RoundedCornerShape(2.dp))
+            .pointerInput(minutes) {
+                detectTapGestures(
+                    onPress = {
+                        isPressed = true
+                        haptic.performHapticFeedback(HapticFeedbackType.TextHandleMove)
+
+                        holdJob = scope.launch {
+                            fillProgress.animateTo(
+                                targetValue = 1f,
+                                animationSpec = tween(800, easing = FastOutSlowInEasing)
+                            )
+                            if (fillProgress.value >= 0.99f) {
+                                haptic.performHapticFeedback(HapticFeedbackType.LongPress)
+                                onConfirmed()
+                                delay(100)
+                                fillProgress.snapTo(0f)
+                            }
+                        }
+
+                        val released = tryAwaitRelease()
+                        isPressed = false
+                        holdJob?.cancel()
+                        scope.launch {
+                            fillProgress.animateTo(0f, tween(150))
+                        }
+                    }
+                )
+            }
+    ) {
+        // Fill progress wash
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(fillProgress.value)
+                .background(palette.accent)
+        )
+
+        // Center duration text
+        Box(
+            modifier = Modifier.fillMaxSize(),
+            contentAlignment = Alignment.Center
+        ) {
+            val textColor = if (fillProgress.value > 0.5f) palette.onAccent else palette.ink
+            Text(
+                text = label,
+                style = MaterialTheme.typography.titleSmall.tabular(),
+                fontWeight = FontWeight.Bold,
+                color = textColor
+            )
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STRICT PLEDGE PROMO CARD (Paper contract / ledger sign-up style)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun StrictPledgePromoCard(
+    onSignPledge: () -> Unit,
+    modifier: Modifier = Modifier
+) {
+    val palette = LocalPledgePalette.current
+
+    Surface(
+        modifier = modifier
+            .fillMaxWidth()
+            .border(BorderStroke(2.dp, palette.border), RoundedCornerShape(3.dp)),
+        color = palette.surface,
+        shape = RoundedCornerShape(3.dp)
+    ) {
+        Column(
+            modifier = Modifier.padding(16.dp)
+        ) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween,
+                verticalAlignment = Alignment.CenterVertically
             ) {
                 Text(
-                    text = formatDurationShort(minutes),
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.primary
+                    text = "THE PLEDGE · STRICT MODE",
+                    style = MaterialTheme.typography.labelMedium,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.stamp,
+                    letterSpacing = 1.2.sp
+                )
+                StampLabel(text = "UNLOCKED", rotation = 0f)
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            Text(
+                text = "Sign an unalterable commitment term. Prevents editing profiles, stopping timers, or disarming protection until your commitment date.",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.inkSecondary
+            )
+
+            Spacer(modifier = Modifier.height(14.dp))
+
+            Button(
+                onClick = onSignPledge,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.border,
+                    contentColor = palette.surface
+                )
+            ) {
+                Text(
+                    text = "SIGN A PLEDGE",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold,
+                    letterSpacing = 1.2.sp
                 )
             }
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// PERMISSIONS NOTICE: Flat hairline row
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-private fun StrictModeSection(
-    strictState: StrictModeState,
-    now: Instant,
-    onActivate: () -> Unit,
-    onDisarm: () -> Unit
+private fun HomePermissionsNotice(
+    permissionsState: SystemPermissionsState,
+    onFix: () -> Unit
 ) {
-    val customColors = LocalCustomColors.current
-    val isArmed = strictState.isEffectivelyActive(now)
-    val termExpired = strictState.isArmed && !isArmed
+    val palette = LocalPledgePalette.current
+    val message = when {
+        !permissionsState.isAccessibilityGranted -> "ACCESSIBILITY DISABLED · TAP TO RESTORE"
+        !permissionsState.isDeviceAdminGranted -> "DEVICE ADMIN INACTIVE · TAP TO ACTIVATE"
+        else -> "BATTERY OPTIMIZATION ACTIVE · TAP TO EXEMPT"
+    }
 
-    if (isArmed || termExpired) {
-        val remainingMs = strictState.remainingMs(now)
-        val shape = RoundedCornerShape(14.dp)
-
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .clickable(onClick = onFix)
+            .border(1.dp, palette.stamp, RoundedCornerShape(2.dp)),
+        color = palette.stampSurface,
+        shape = RoundedCornerShape(2.dp)
+    ) {
         Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clip(shape)
-                .background(customColors.strictContainer)
-                .border(1.dp, customColors.strictAmber.copy(alpha = 0.7f), shape)
-                .padding(16.dp),
+            modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             Icon(
-                imageVector = Icons.Default.Lock,
+                imageVector = Icons.Default.Warning,
                 contentDescription = null,
-                tint = customColors.strictAmber,
-                modifier = Modifier.size(18.dp)
+                tint = palette.stamp,
+                modifier = Modifier.size(16.dp)
             )
-            Spacer(modifier = Modifier.width(10.dp))
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Strict Mode",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.Bold,
-                    color = customColors.strictOnContainer
-                )
-                Text(
-                    text = "${strictState.termType.label} commitment. All profiles are locked.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = customColors.strictOnContainer
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            if (termExpired) {
-                TextButton(onClick = onDisarm) {
-                    Text("Disarm", fontWeight = FontWeight.SemiBold)
-                }
-            } else {
-                Text(
-                    text = if (remainingMs == null) "Ongoing" else formatTimer(remainingMs),
-                    style = MaterialTheme.typography.titleMedium.tabular(),
-                    fontWeight = FontWeight.Bold,
-                    color = customColors.strictAmber,
-                    maxLines = 1
-                )
-            }
-        }
-    } else {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .heightIn(min = 48.dp),
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = "Strict Mode",
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
-                )
-                Text(
-                    text = "Lock profiles for a fixed commitment term.",
-                    style = MaterialTheme.typography.bodySmall,
-                    color = customColors.subtleText
-                )
-            }
-            Spacer(modifier = Modifier.width(12.dp))
-            TextButton(onClick = onActivate) {
-                Text("Set up", fontWeight = FontWeight.SemiBold)
-            }
+            Spacer(modifier = Modifier.width(8.dp))
+            Text(
+                text = message,
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = palette.stamp,
+                modifier = Modifier.weight(1f),
+                letterSpacing = 0.8.sp
+            )
         }
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// EMPTY PROFILES STATE: Clean ledger row
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-private fun ProfilesHeader(
-    count: Int,
-    onAddProfile: () -> Unit
-) {
-    val customColors = LocalCustomColors.current
-    Row(
-        modifier = Modifier.fillMaxWidth(),
-        verticalAlignment = Alignment.CenterVertically
+private fun EmptyProfilesLedger(onCreateProfile: () -> Unit) {
+    val palette = LocalPledgePalette.current
+
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(BorderStroke(1.dp, palette.hairline), RoundedCornerShape(3.dp)),
+        color = palette.surface,
+        shape = RoundedCornerShape(3.dp)
     ) {
-        Text(
-            text = stringResource(id = R.string.home_profiles),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.width(8.dp))
-        Text(
-            text = "$count",
-            style = MaterialTheme.typography.bodySmall,
-            color = customColors.subtleText
-        )
-        Spacer(modifier = Modifier.weight(1f))
-        TextButton(onClick = onAddProfile) {
-            Icon(Icons.Default.Add, contentDescription = null, modifier = Modifier.size(16.dp))
-            Spacer(modifier = Modifier.width(4.dp))
-            Text("New", fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
-
-@Composable
-private fun ProfileRow(
-    profile: Profile,
-    isActiveNow: Boolean,
-    isStrictActive: Boolean,
-    activeInfo: ActiveProfileInfo?,
-    remainingMs: Long?,
-    showDivider: Boolean,
-    onEdit: () -> Unit,
-    onToggle: (Boolean) -> Unit
-) {
-    val customColors = LocalCustomColors.current
-
-    val subtitle: String
-    val subtitleColor: Color
-    if (isActiveNow && remainingMs != null && remainingMs > 0) {
-        val isUsageLimit = activeInfo?.schedule?.mode == ScheduleMode.USAGE_LIMIT
-        subtitle = when {
-            isStrictActive -> "Locked, ${formatCountdown(remainingMs)} remaining"
-            isUsageLimit -> "Quota active, ${formatCountdown(remainingMs)} until reset"
-            else -> "Active, ${formatCountdown(remainingMs)} remaining"
-        }
-        subtitleColor = if (isStrictActive) customColors.strictAmber else customColors.positive
-    } else {
-        val schedule = profile.schedules.firstOrNull()
-        val appCount = profile.blockedApps.size
-        subtitle = buildString {
-            if (appCount > 0) append("$appCount apps")
-            if (schedule != null) {
-                if (isNotEmpty()) append(", ")
-                append(formatScheduleSummary(schedule))
-            }
-            if (isEmpty()) append("No apps, no schedule")
-        }
-        subtitleColor = customColors.subtleText
-    }
-
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Row(
-            modifier = Modifier
-                .fillMaxWidth()
-                .clickable(onClick = onEdit)
-                .heightIn(min = 68.dp)
-                .padding(vertical = 12.dp),
-            verticalAlignment = Alignment.CenterVertically
+        Column(
+            modifier = Modifier.padding(20.dp),
+            horizontalAlignment = Alignment.CenterHorizontally
         ) {
-            Column(modifier = Modifier.weight(1f)) {
-                Text(
-                    text = profile.name.ifBlank { "Untitled profile" },
-                    style = MaterialTheme.typography.titleMedium,
-                    fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onBackground
+            Text(
+                text = "NO ACTIVE CONTRACTS",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                color = palette.ink,
+                letterSpacing = 1.0.sp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = "Create your first blocking schedule or quota rule to begin.",
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.inkSecondary,
+                textAlign = TextAlign.Center
+            )
+            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = onCreateProfile,
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .height(46.dp),
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent
                 )
-                Spacer(modifier = Modifier.height(3.dp))
+            ) {
                 Text(
-                    text = subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = subtitleColor,
-                    maxLines = 1,
-                    overflow = TextOverflow.Ellipsis
+                    text = "DRAFT FIRST PROFILE",
+                    style = MaterialTheme.typography.labelLarge,
+                    fontWeight = FontWeight.Bold
                 )
             }
-            Spacer(modifier = Modifier.width(12.dp))
-            if (isStrictActive) {
-                Row(verticalAlignment = Alignment.CenterVertically) {
-                    Icon(
-                        imageVector = Icons.Default.Lock,
-                        contentDescription = null,
-                        tint = customColors.strictAmber,
-                        modifier = Modifier.size(14.dp)
-                    )
-                    Spacer(modifier = Modifier.width(4.dp))
-                    Text(
-                        text = "Locked",
-                        style = MaterialTheme.typography.labelSmall,
-                        fontWeight = FontWeight.SemiBold,
-                        color = customColors.strictAmber
-                    )
-                }
-            } else {
-                Switch(
-                    checked = profile.enabled,
-                    onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = MaterialTheme.colorScheme.onPrimary,
-                        checkedTrackColor = if (profile.strict) customColors.strictAmber
-                        else MaterialTheme.colorScheme.primary
-                    )
-                )
-            }
-        }
-        if (showDivider) {
-            HorizontalDivider(color = customColors.cardBorder, thickness = 1.dp)
         }
     }
 }
 
-@Composable
-private fun EmptyProfilesState(onCreateProfile: () -> Unit) {
-    val customColors = LocalCustomColors.current
-    Column(modifier = Modifier.fillMaxWidth()) {
-        Text(
-            text = stringResource(id = R.string.home_empty_title),
-            style = MaterialTheme.typography.titleMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onBackground
-        )
-        Spacer(modifier = Modifier.height(6.dp))
-        Text(
-            text = stringResource(id = R.string.home_empty_subtitle),
-            style = MaterialTheme.typography.bodyMedium,
-            color = customColors.subtleText
-        )
-        Spacer(modifier = Modifier.height(16.dp))
-        Button(
-            onClick = onCreateProfile,
-            modifier = Modifier
-                .fillMaxWidth()
-                .height(48.dp),
-            shape = RoundedCornerShape(10.dp)
-        ) {
-            Text(stringResource(id = R.string.home_empty_action), fontWeight = FontWeight.SemiBold)
-        }
-    }
-}
+// ─────────────────────────────────────────────────────────────────────────────
+// QUICK BLOCK MODAL
+// ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
@@ -671,6 +764,7 @@ private fun QuickBlockModal(
     onDismiss: () -> Unit,
     onConfirm: (Int, Set<String>) -> Unit
 ) {
+    val palette = LocalPledgePalette.current
     var duration by remember { mutableIntStateOf(initialDuration) }
     val allUniqueApps = remember(availableProfiles) {
         availableProfiles.flatMap { it.blockedApps }.toSet()
@@ -680,40 +774,53 @@ private fun QuickBlockModal(
     AlertDialog(
         onDismissRequest = onDismiss,
         title = {
-            Text("Quick session", fontWeight = FontWeight.Bold)
+            Text(
+                text = "QUICK BLOCK SESSION",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.0.sp,
+                color = palette.ink
+            )
         },
         text = {
             Column {
                 Text(
-                    text = "Duration",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium
+                    text = "DURATION",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.inkSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
                 FlowRow(
-                    horizontalArrangement = Arrangement.spacedBy(8.dp),
-                    verticalArrangement = Arrangement.spacedBy(8.dp)
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
                 ) {
                     val presets = listOf(15, 30, 45, 60, 120)
                     presets.forEach { mins ->
-                        FilterChip(
-                            selected = duration == mins,
-                            onClick = { duration = mins },
-                            label = { Text(formatDurationShort(mins)) },
-                            colors = FilterChipDefaults.filterChipColors(
-                                selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                                selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
+                        val isSelected = duration == mins
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(2.dp))
+                                .border(1.dp, if (isSelected) palette.accent else palette.hairline, RoundedCornerShape(2.dp))
+                                .clickable { duration = mins },
+                            color = if (isSelected) palette.accent else palette.surface
+                        ) {
+                            Text(
+                                text = if (mins >= 60) "${mins / 60}H" else "${mins}M",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) palette.onAccent else palette.ink,
+                                modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp)
                             )
-                        )
+                        }
                     }
                 }
 
                 Spacer(modifier = Modifier.height(16.dp))
 
                 Text(
-                    text = "Apps (${selectedApps.size} of ${allUniqueApps.size})",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Medium
+                    text = "APPS (${selectedApps.size} OF ${allUniqueApps.size})",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.inkSecondary
                 )
                 Spacer(modifier = Modifier.height(8.dp))
 
@@ -721,7 +828,7 @@ private fun QuickBlockModal(
                     Text(
                         text = "No apps in your profiles yet. Create a profile to pick apps.",
                         style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        color = palette.inkSecondary
                     )
                 } else {
                     FlowRow(
@@ -731,13 +838,22 @@ private fun QuickBlockModal(
                     ) {
                         allUniqueApps.take(8).forEach { pkg ->
                             val isSelected = selectedApps.contains(pkg)
-                            FilterChip(
-                                selected = isSelected,
-                                onClick = {
-                                    selectedApps = if (isSelected) selectedApps - pkg else selectedApps + pkg
-                                },
-                                label = { Text(pkg.substringAfterLast('.')) }
-                            )
+                            Surface(
+                                modifier = Modifier
+                                    .clip(RoundedCornerShape(2.dp))
+                                    .border(1.dp, if (isSelected) palette.border else palette.hairline, RoundedCornerShape(2.dp))
+                                    .clickable {
+                                        selectedApps = if (isSelected) selectedApps - pkg else selectedApps + pkg
+                                    },
+                                color = if (isSelected) palette.hairline else palette.surface
+                            ) {
+                                Text(
+                                    text = pkg.substringAfterLast('.'),
+                                    style = MaterialTheme.typography.labelSmall,
+                                    color = palette.ink,
+                                    modifier = Modifier.padding(horizontal = 8.dp, vertical = 4.dp)
+                                )
+                            }
                         }
                     }
                 }
@@ -746,23 +862,29 @@ private fun QuickBlockModal(
         confirmButton = {
             Button(
                 onClick = { onConfirm(duration, selectedApps) },
-                shape = RoundedCornerShape(10.dp)
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent
+                )
             ) {
-                Text("Start ${formatDurationShort(duration)} session")
+                Text(
+                    text = "START ${if (duration >= 60) "${duration / 60}H" else "${duration}M"} SESSION",
+                    fontWeight = FontWeight.Bold
+                )
             }
         },
         dismissButton = {
             TextButton(onClick = onDismiss) {
-                Text(stringResource(id = R.string.cancel))
+                Text("CANCEL", color = palette.inkSecondary, fontWeight = FontWeight.SemiBold)
             }
-        }
+        },
+        containerColor = palette.surface,
+        shape = RoundedCornerShape(4.dp)
     )
 }
 
-private fun formatDurationShort(minutes: Int): String =
-    if (minutes >= 60 && minutes % 60 == 0) "${minutes / 60}h" else "${minutes}m"
-
-private fun formatTimer(ms: Long): String {
+private fun formatHeroTimer(ms: Long): String {
     val totalSeconds = (ms / 1000).coerceAtLeast(0)
     val hours = totalSeconds / 3600
     val minutes = (totalSeconds % 3600) / 60
@@ -772,11 +894,4 @@ private fun formatTimer(ms: Long): String {
     } else {
         "%02d:%02d".format(minutes, seconds)
     }
-}
-
-private fun formatCountdown(ms: Long): String {
-    val totalMinutes = ms / 60000
-    val hours = totalMinutes / 60
-    val minutes = totalMinutes % 60
-    return if (hours > 0) "%dh %02dm".format(hours, minutes) else "%dm".format(minutes)
 }

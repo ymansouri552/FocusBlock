@@ -1,8 +1,11 @@
 package com.focusblock.ui.components
 
 import androidx.compose.foundation.BorderStroke
+import androidx.compose.foundation.background
+import androidx.compose.foundation.border
 import androidx.compose.foundation.clickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
@@ -10,22 +13,22 @@ import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.shape.RoundedCornerShape
-import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedCard
+import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.alpha
+import androidx.compose.ui.draw.clip
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
-import com.focusblock.ui.theme.LocalCustomColors
+import com.focusblock.ui.theme.LocalPledgePalette
 
 /**
- * Modern, symmetrical 3-button selector for emergency unlock delay durations (10m, 15m, 30m).
- * Ensures all three buttons have identical widths, heights, corner shapes, and typography.
+ * Ledger-style segment selector for emergency unlock delay durations (10m, 15m, 30m).
+ * Square-cornered segments with high-contrast active fill.
  */
 @Composable
 fun EmergencyDelayButtons(
@@ -35,68 +38,39 @@ fun EmergencyDelayButtons(
     enabled: Boolean = true,
     isStrictTheme: Boolean = false
 ) {
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
     val options = listOf(10, 15, 30)
 
     Row(
         modifier = modifier.fillMaxWidth(),
-        horizontalArrangement = Arrangement.spacedBy(8.dp)
+        horizontalArrangement = Arrangement.spacedBy(6.dp)
     ) {
         options.forEach { mins ->
             val isSelected = selectedMinutes == mins
 
-            val activeContainerColor = if (isStrictTheme) {
-                customColors.strictContainer.copy(alpha = 0.5f)
-            } else {
-                MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.4f)
-            }
+            val activeBg = if (isStrictTheme) palette.stamp else palette.accent
+            val activeText = if (isStrictTheme) palette.surface else palette.onAccent
 
-            val activeBorderColor = if (isStrictTheme) {
-                customColors.strictAmber
-            } else {
-                MaterialTheme.colorScheme.primary
-            }
-
-            val activeTextColor = if (isStrictTheme) {
-                customColors.strictAmber
-            } else {
-                MaterialTheme.colorScheme.primary
-            }
-
-            OutlinedCard(
-                onClick = { if (enabled) onSelectMinutes(mins) },
-                enabled = enabled,
+            Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .height(54.dp)
-                    .then(if (!enabled) Modifier.alpha(0.5f) else Modifier),
-                shape = RoundedCornerShape(10.dp),
-                colors = CardDefaults.outlinedCardColors(
-                    containerColor = if (isSelected) activeContainerColor else MaterialTheme.colorScheme.surfaceContainerHigh
-                ),
-                border = BorderStroke(
-                    width = if (isSelected) 2.dp else 1.dp,
-                    color = if (isSelected) activeBorderColor else customColors.cardBorder
-                )
-            ) {
-                Column(
-                    modifier = Modifier.fillMaxSize(),
-                    verticalArrangement = Arrangement.Center,
-                    horizontalAlignment = Alignment.CenterHorizontally
-                ) {
-                    Text(
-                        text = "${mins}m",
-                        style = MaterialTheme.typography.titleMedium,
-                        fontWeight = if (isSelected) FontWeight.Bold else FontWeight.SemiBold,
-                        color = if (isSelected) activeTextColor else MaterialTheme.colorScheme.onSurface,
-                        fontSize = 15.sp
+                    .height(46.dp)
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(
+                        BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) palette.border else palette.hairline),
+                        RoundedCornerShape(2.dp)
                     )
-                    Spacer(modifier = Modifier.height(1.dp))
+                    .then(if (!enabled) Modifier.alpha(0.4f) else Modifier)
+                    .clickable(enabled = enabled) { onSelectMinutes(mins) },
+                color = if (isSelected) activeBg else palette.surface
+            ) {
+                Box(contentAlignment = Alignment.Center) {
                     Text(
-                        text = "delay",
+                        text = "${mins}M DELAY",
                         style = MaterialTheme.typography.labelSmall,
-                        color = if (isSelected) activeTextColor else MaterialTheme.colorScheme.onSurfaceVariant,
-                        fontSize = 10.sp
+                        fontWeight = FontWeight.Bold,
+                        color = if (isSelected) activeText else palette.ink,
+                        letterSpacing = 1.0.sp
                     )
                 }
             }

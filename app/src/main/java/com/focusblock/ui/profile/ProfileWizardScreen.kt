@@ -3,7 +3,6 @@ package com.focusblock.ui.profile
 import android.app.TimePickerDialog
 import android.text.format.DateFormat
 import androidx.compose.animation.AnimatedContent
-import androidx.compose.animation.AnimatedVisibility
 import androidx.compose.animation.fadeIn
 import androidx.compose.animation.fadeOut
 import androidx.compose.animation.slideInHorizontally
@@ -22,6 +21,7 @@ import androidx.compose.foundation.layout.FlowRow
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
 import androidx.compose.foundation.layout.Spacer
+import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
@@ -30,52 +30,48 @@ import androidx.compose.foundation.layout.size
 import androidx.compose.foundation.layout.width
 import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
+import androidx.compose.foundation.pager.HorizontalPager
+import androidx.compose.foundation.pager.rememberPagerState
 import androidx.compose.foundation.rememberScrollState
-import androidx.compose.foundation.shape.CircleShape
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.filled.AccessTime
-import androidx.compose.material.icons.filled.Block
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.Clear
 import androidx.compose.material.icons.filled.Close
-import androidx.compose.material.icons.filled.HourglassTop
 import androidx.compose.material.icons.filled.Info
 import androidx.compose.material.icons.filled.Lock
-import androidx.compose.material.icons.filled.Nightlight
-import androidx.compose.material.icons.filled.Schedule
-import androidx.compose.material.icons.filled.School
 import androidx.compose.material.icons.filled.Search
-import androidx.compose.material.icons.filled.Tune
-import androidx.compose.material.icons.filled.WbSunny
 import androidx.compose.material3.Button
+import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Card
 import androidx.compose.material3.CardDefaults
 import androidx.compose.material3.Checkbox
+import androidx.compose.material3.CheckboxDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
-import androidx.compose.material3.FilterChip
-import androidx.compose.material3.FilterChipDefaults
+import androidx.compose.material3.HorizontalDivider
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
-import androidx.compose.material3.OutlinedButton
-import androidx.compose.material3.OutlinedCard
 import androidx.compose.material3.OutlinedTextField
+import androidx.compose.material3.OutlinedTextFieldDefaults
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Surface
 import androidx.compose.material3.Switch
+import androidx.compose.material3.SwitchDefaults
 import androidx.compose.material3.Text
 import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.TopAppBarDefaults
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
 import androidx.compose.runtime.produceState
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.snapshotFlow
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.draw.clip
@@ -84,6 +80,7 @@ import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
 import androidx.compose.ui.unit.sp
 import androidx.lifecycle.compose.collectAsStateWithLifecycle
@@ -95,7 +92,13 @@ import com.focusblock.domain.model.ProfilePresets
 import com.focusblock.domain.model.Schedule
 import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.ScheduleType
-import com.focusblock.ui.theme.LocalCustomColors
+import com.focusblock.ui.components.DayBar24h
+import com.focusblock.ui.components.DayTimeline24hEditor
+import com.focusblock.ui.components.SectionHeader
+import com.focusblock.ui.components.StampLabel
+import com.focusblock.ui.theme.LocalPledgePalette
+import com.focusblock.ui.theme.StampTextStyle
+import com.focusblock.ui.theme.tabular
 import java.time.LocalTime
 import java.time.format.DateTimeFormatter
 import kotlin.math.absoluteValue
@@ -107,22 +110,30 @@ fun ProfileWizardScreen(
     onBack: () -> Unit
 ) {
     val state by viewModel.uiState.collectAsStateWithLifecycle()
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
 
     Scaffold(
         topBar = {
             TopAppBar(
                 title = {
-                    Column {
+                    Row(
+                        modifier = Modifier.fillMaxWidth(),
+                        horizontalArrangement = Arrangement.SpaceBetween,
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
                         Text(
-                            text = stringResource(id = R.string.wizard_title),
+                            text = "NEW CONTRACT",
                             style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
+                            fontWeight = FontWeight.Bold,
+                            letterSpacing = 1.5.sp,
+                            color = palette.ink
                         )
                         Text(
-                            text = "Step ${state.step} of 4",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "STEP ${state.step} / 4",
+                            style = MaterialTheme.typography.labelMedium,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.accent,
+                            letterSpacing = 1.2.sp
                         )
                     }
                 },
@@ -138,40 +149,51 @@ fun ProfileWizardScreen(
                     ) {
                         Icon(
                             imageVector = if (state.step > 1) Icons.AutoMirrored.Filled.ArrowBack else Icons.Default.Close,
-                            contentDescription = if (state.step > 1) stringResource(id = R.string.wizard_back) else stringResource(id = R.string.close)
+                            contentDescription = if (state.step > 1) stringResource(id = R.string.wizard_back) else stringResource(id = R.string.close),
+                            tint = palette.ink
                         )
                     }
                 },
                 colors = TopAppBarDefaults.topAppBarColors(
-                    containerColor = MaterialTheme.colorScheme.surface
+                    containerColor = palette.background
                 )
             )
         },
         bottomBar = {
             Surface(
-                color = MaterialTheme.colorScheme.surface,
-                tonalElevation = 3.dp,
-                border = BorderStroke(1.dp, customColors.cardBorder.copy(alpha = 0.5f))
+                color = palette.surface,
+                border = BorderStroke(1.dp, palette.hairline)
             ) {
                 Row(
                     modifier = Modifier
                         .fillMaxWidth()
                         .padding(horizontal = 16.dp, vertical = 12.dp),
-                    horizontalArrangement = Arrangement.spacedBy(12.dp),
+                    horizontalArrangement = Arrangement.spacedBy(10.dp),
                     verticalAlignment = Alignment.CenterVertically
                 ) {
                     if (state.step > 1) {
-                        OutlinedButton(
-                            onClick = { viewModel.prevStep() },
+                        Surface(
                             modifier = Modifier
-                                .weight(1f)
-                                .height(48.dp),
-                            shape = RoundedCornerShape(10.dp)
+                                .weight(0.4f)
+                                .height(50.dp)
+                                .clip(RoundedCornerShape(2.dp))
+                                .border(1.5.dp, palette.border, RoundedCornerShape(2.dp))
+                                .clickable { viewModel.prevStep() },
+                            color = palette.surface
                         ) {
-                            Text(stringResource(id = R.string.wizard_back), fontWeight = FontWeight.SemiBold)
+                            Box(contentAlignment = Alignment.Center) {
+                                Text(
+                                    text = "BACK",
+                                    style = MaterialTheme.typography.labelLarge,
+                                    fontWeight = FontWeight.Bold,
+                                    color = palette.ink,
+                                    letterSpacing = 1.0.sp
+                                )
+                            }
                         }
                     }
 
+                    // Primary Full-width, square-edged button
                     Button(
                         onClick = {
                             if (state.step == 4) {
@@ -181,53 +203,63 @@ fun ProfileWizardScreen(
                             }
                         },
                         modifier = Modifier
-                            .weight(if (state.step > 1) 1.5f else 1f)
-                            .height(48.dp),
-                        shape = RoundedCornerShape(10.dp),
-                        enabled = !state.isSaving
+                            .weight(1f)
+                            .height(50.dp),
+                        shape = RoundedCornerShape(2.dp),
+                        enabled = !state.isSaving,
+                        colors = ButtonDefaults.buttonColors(
+                            containerColor = palette.accent,
+                            contentColor = palette.onAccent,
+                            disabledContainerColor = palette.hairline
+                        )
                     ) {
                         if (state.isSaving) {
                             CircularProgressIndicator(
                                 modifier = Modifier.size(20.dp),
-                                color = MaterialTheme.colorScheme.onPrimary,
+                                color = palette.onAccent,
                                 strokeWidth = 2.dp
                             )
                         } else {
                             val buttonText = when (state.step) {
-                                1 -> "Next: Choose Apps"
-                                2 -> "Next: Set Schedule (${state.selectedPackages.size})"
-                                3 -> "Next: Review & Protect"
-                                else -> stringResource(id = R.string.wizard_create)
+                                1 -> "NEXT: SELECT APPS"
+                                2 -> "NEXT: SET SCHEDULE (${state.selectedPackages.size})"
+                                3 -> "NEXT: REVIEW & PLEDGE"
+                                else -> "SEAL & SAVE CONTRACT"
                             }
-                            Text(buttonText, fontWeight = FontWeight.Bold)
+                            Text(
+                                text = buttonText,
+                                style = MaterialTheme.typography.labelLarge,
+                                fontWeight = FontWeight.Bold,
+                                letterSpacing = 1.2.sp
+                            )
                         }
                     }
                 }
             }
-        }
+        },
+        containerColor = palette.background
     ) { innerPadding ->
         Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(innerPadding)
         ) {
-            // Step Progress Indicator
-            StepProgressBar(
+            // Thin progress line across the top
+            ThinStepProgressLine(
                 currentStep = state.step,
                 totalSteps = 4,
-                modifier = Modifier
-                    .fillMaxWidth()
-                    .padding(horizontal = 16.dp, vertical = 8.dp)
+                modifier = Modifier.fillMaxWidth()
             )
 
-            // Error Notice
+            // Error notice
             state.error?.let { err ->
                 Surface(
                     modifier = Modifier
                         .fillMaxWidth()
-                        .padding(horizontal = 16.dp, vertical = 4.dp),
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.errorContainer
+                        .padding(horizontal = 16.dp, vertical = 6.dp),
+                    shape = RoundedCornerShape(2.dp),
+                    color = palette.stampSurface,
+                    border = BorderStroke(1.dp, palette.stamp)
                 ) {
                     Row(
                         modifier = Modifier.padding(10.dp),
@@ -236,14 +268,15 @@ fun ProfileWizardScreen(
                         Icon(
                             imageVector = Icons.Default.Info,
                             contentDescription = null,
-                            tint = MaterialTheme.colorScheme.error,
+                            tint = palette.stamp,
                             modifier = Modifier.size(16.dp)
                         )
                         Spacer(modifier = Modifier.width(8.dp))
                         Text(
                             text = err,
                             style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onErrorContainer
+                            color = palette.stamp,
+                            fontWeight = FontWeight.SemiBold
                         )
                     }
                 }
@@ -266,13 +299,13 @@ fun ProfileWizardScreen(
                 modifier = Modifier.weight(1f)
             ) { targetStep ->
                 when (targetStep) {
-                    1 -> WizardStep1Presets(
+                    1 -> WizardStep1PresetsPager(
                         selectedPresetId = state.selectedPresetId,
                         profileName = state.profileName,
                         onSelectPreset = { viewModel.selectPreset(it) },
                         onNameChange = { viewModel.setProfileName(it) }
                     )
-                    2 -> WizardStep2AppPicker(
+                    2 -> WizardStep2AppPickerLedger(
                         installedApps = state.installedApps,
                         selectedPackages = state.selectedPackages,
                         searchQuery = state.searchQuery,
@@ -281,12 +314,12 @@ fun ProfileWizardScreen(
                         onSelectAll = { viewModel.selectAllFilteredApps(it) },
                         onClearAll = { viewModel.clearAllSelectedPackages() }
                     )
-                    3 -> WizardStep3Schedule(
+                    3 -> WizardStep3ScheduleTimeline(
                         schedule = state.schedule,
                         appCount = state.selectedPackages.size,
                         onScheduleChange = { viewModel.setSchedule(it) }
                     )
-                    4 -> WizardStep4Review(
+                    4 -> WizardStep4PledgeReview(
                         profileName = state.profileName,
                         selectedApps = state.installedApps.filter { state.selectedPackages.contains(it.packageName) },
                         schedule = state.schedule,
@@ -299,187 +332,235 @@ fun ProfileWizardScreen(
     }
 }
 
+// ─────────────────────────────────────────────────────────────────────────────
+// THIN PROGRESS LINE (Thin line across top)
+// ─────────────────────────────────────────────────────────────────────────────
+
 @Composable
-private fun StepProgressBar(
+private fun ThinStepProgressLine(
     currentStep: Int,
     totalSteps: Int,
     modifier: Modifier = Modifier
 ) {
-    Row(
-        modifier = modifier,
-        horizontalArrangement = Arrangement.spacedBy(6.dp)
+    val palette = LocalPledgePalette.current
+    val progress = currentStep.toFloat() / totalSteps.toFloat()
+
+    Box(
+        modifier = modifier
+            .height(2.dp)
+            .background(palette.hairline)
     ) {
-        for (i in 1..totalSteps) {
-            val isActive = i <= currentStep
-            Box(
-                modifier = Modifier
-                    .weight(1f)
-                    .height(4.dp)
-                    .clip(RoundedCornerShape(2.dp))
-                    .background(
-                        if (isActive) MaterialTheme.colorScheme.primary
-                        else MaterialTheme.colorScheme.surfaceContainerHighest
-                    )
-            )
-        }
+        Box(
+            modifier = Modifier
+                .fillMaxHeight()
+                .fillMaxWidth(progress)
+                .background(palette.accent)
+        )
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 1: Presets & Profile Name
+// STEP 1: HORIZONTAL SWIPEABLE PAGER (One large preset card per page)
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WizardStep1Presets(
+private fun WizardStep1PresetsPager(
     selectedPresetId: String,
     profileName: String,
     onSelectPreset: (ProfilePreset) -> Unit,
     onNameChange: (String) -> Unit
 ) {
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
+    val presets = remember { ProfilePresets.presets }
+    val initialPage = remember(selectedPresetId) {
+        presets.indexOfFirst { it.id == selectedPresetId }.coerceAtLeast(0)
+    }
+    val pagerState = rememberPagerState(initialPage = initialPage, pageCount = { presets.size })
+
+    // Keep preset selection synchronized with pager swipe
+    LaunchedEffect(pagerState) {
+        snapshotFlow { pagerState.currentPage }.collect { page ->
+            if (page in presets.indices) {
+                onSelectPreset(presets[page])
+            }
+        }
+    }
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(vertical = 12.dp)
     ) {
         Text(
-            text = stringResource(id = R.string.wizard_step_1_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(id = R.string.wizard_step_1_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "SELECT TEMPLATE",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.5.sp,
+            modifier = Modifier.padding(horizontal = 16.dp)
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(12.dp))
 
-        Text(
-            text = "Select a Preset Template",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        ProfilePresets.presets.forEach { preset ->
+        // Horizontal Swipeable Pager for Presets
+        HorizontalPager(
+            state = pagerState,
+            contentPadding = PaddingValues(horizontal = 24.dp),
+            pageSpacing = 12.dp,
+            modifier = Modifier
+                .fillMaxWidth()
+                .height(270.dp)
+        ) { page ->
+            val preset = presets[page]
             val isSelected = selectedPresetId == preset.id
-            PresetCard(
+            PresetContractCard(
                 preset = preset,
                 isSelected = isSelected,
-                onClick = { onSelectPreset(preset) },
-                customBorderColor = customColors.cardBorder
+                onClick = { onSelectPreset(preset) }
+            )
+        }
+
+        Spacer(modifier = Modifier.height(12.dp))
+
+        // Pager indicator dots / bars
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            presets.forEachIndexed { idx, _ ->
+                val active = pagerState.currentPage == idx
+                Box(
+                    modifier = Modifier
+                        .padding(horizontal = 3.dp)
+                        .width(if (active) 20.dp else 6.dp)
+                        .height(3.dp)
+                        .clip(RoundedCornerShape(1.dp))
+                        .background(if (active) palette.accent else palette.hairline)
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(24.dp))
+
+        // Profile Name Input
+        Column(modifier = Modifier.padding(horizontal = 16.dp)) {
+            Text(
+                text = "CONTRACT CODENAME",
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.inkSecondary,
+                letterSpacing = 1.2.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
+            OutlinedTextField(
+                value = profileName,
+                onValueChange = onNameChange,
+                placeholder = { Text("e.g. Deep Work, Evening Rest", color = palette.inkSecondary) },
+                singleLine = true,
+                shape = RoundedCornerShape(2.dp),
+                modifier = Modifier.fillMaxWidth(),
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = palette.border,
+                    unfocusedBorderColor = palette.hairline,
+                    focusedTextColor = palette.ink,
+                    unfocusedTextColor = palette.ink,
+                    focusedContainerColor = palette.surface,
+                    unfocusedContainerColor = palette.surface
+                )
+            )
         }
 
         Spacer(modifier = Modifier.height(16.dp))
-
-        Text(
-            text = "Profile Name",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-        Spacer(modifier = Modifier.height(8.dp))
-
-        OutlinedTextField(
-            value = profileName,
-            onValueChange = onNameChange,
-            placeholder = { Text("e.g. Deep Work, Evening Rest") },
-            singleLine = true,
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth()
-        )
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 @Composable
-private fun PresetCard(
+private fun PresetContractCard(
     preset: ProfilePreset,
     isSelected: Boolean,
-    onClick: () -> Unit,
-    customBorderColor: Color
+    onClick: () -> Unit
 ) {
-    val icon = when (preset.id) {
-        "deep_work" -> Icons.Default.School
-        "screen_time_budget" -> Icons.Default.HourglassTop
-        "bedtime_wind_down" -> Icons.Default.Nightlight
-        "screen_free_morning" -> Icons.Default.WbSunny
-        else -> Icons.Default.Tune
-    }
+    val palette = LocalPledgePalette.current
 
-    Card(
+    Surface(
         modifier = Modifier
-            .fillMaxWidth()
+            .fillMaxSize()
+            .clip(RoundedCornerShape(4.dp))
+            .border(
+                BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) palette.border else palette.hairline),
+                RoundedCornerShape(4.dp)
+            )
             .clickable(onClick = onClick),
-        shape = RoundedCornerShape(14.dp),
-        colors = CardDefaults.cardColors(
-            containerColor = if (isSelected) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.25f)
-            else MaterialTheme.colorScheme.surface
-        ),
-        border = BorderStroke(
-            width = if (isSelected) 2.dp else 1.dp,
-            color = if (isSelected) MaterialTheme.colorScheme.primary else customBorderColor
-        )
+        color = palette.surface
     ) {
-        Row(
+        Column(
             modifier = Modifier
-                .fillMaxWidth()
-                .padding(14.dp),
-            verticalAlignment = Alignment.CenterVertically
+                .fillMaxSize()
+                .padding(18.dp),
+            verticalArrangement = Arrangement.SpaceBetween
         ) {
-            Surface(
-                shape = CircleShape,
-                color = if (isSelected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                modifier = Modifier.size(40.dp)
-            ) {
-                Box(contentAlignment = Alignment.Center) {
-                    Icon(
-                        imageVector = icon,
-                        contentDescription = null,
-                        tint = if (isSelected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.primary,
-                        modifier = Modifier.size(20.dp)
-                    )
-                }
-            }
-
-            Spacer(modifier = Modifier.width(12.dp))
-
-            Column(modifier = Modifier.weight(1f)) {
+            Column {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically,
-                    horizontalArrangement = Arrangement.SpaceBetween
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
                 ) {
                     Text(
-                        text = preset.title,
-                        style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.onSurface
+                        text = preset.badge.uppercase(),
+                        style = MaterialTheme.typography.labelSmall,
+                        color = palette.inkSecondary,
+                        letterSpacing = 1.0.sp
                     )
-                    Surface(
-                        shape = RoundedCornerShape(6.dp),
-                        color = MaterialTheme.colorScheme.surfaceContainerHighest
-                    ) {
-                        Text(
-                            text = preset.badge,
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant,
-                            modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
-                        )
+                    if (isSelected) {
+                        Surface(
+                            color = palette.accent,
+                            shape = RoundedCornerShape(2.dp)
+                        ) {
+                            Text(
+                                text = "SELECTED",
+                                style = StampTextStyle,
+                                color = palette.onAccent,
+                                modifier = Modifier.padding(horizontal = 6.dp, vertical = 2.dp)
+                            )
+                        }
                     }
                 }
-                Spacer(modifier = Modifier.height(4.dp))
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Text(
+                    text = preset.title.uppercase(),
+                    style = MaterialTheme.typography.headlineLarge,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.ink,
+                    letterSpacing = (-0.5).sp
+                )
+
+                Spacer(modifier = Modifier.height(8.dp))
+
                 Text(
                     text = preset.subtitle,
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.inkSecondary,
+                    lineHeight = 20.sp
+                )
+            }
+
+            // Visual 24-hour bar on the card
+            Column {
+                Text(
+                    text = "SCHEDULE COVERAGE",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontSize = 9.sp,
+                    color = palette.inkSecondary,
+                    letterSpacing = 1.0.sp
+                )
+                Spacer(modifier = Modifier.height(6.dp))
+                DayBar24h(
+                    startTime = preset.defaultSchedule.startTime,
+                    endTime = preset.defaultSchedule.endTime,
+                    isBlockMode = preset.defaultSchedule.mode == ScheduleMode.BLOCK,
+                    height = 14.dp
                 )
             }
         }
@@ -487,11 +568,11 @@ private fun PresetCard(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 2: App Selection
+// STEP 2: APP PICKER LEDGER
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WizardStep2AppPicker(
+private fun WizardStep2AppPickerLedger(
     installedApps: List<InstalledApp>,
     selectedPackages: Set<String>,
     searchQuery: String,
@@ -500,6 +581,8 @@ private fun WizardStep2AppPicker(
     onSelectAll: (List<String>) -> Unit,
     onClearAll: () -> Unit
 ) {
+    val palette = LocalPledgePalette.current
+
     val filteredApps = remember(installedApps, searchQuery, selectedPackages) {
         val list = if (searchQuery.isBlank()) {
             installedApps
@@ -520,28 +603,16 @@ private fun WizardStep2AppPicker(
             .fillMaxSize()
             .padding(horizontal = 16.dp, vertical = 8.dp)
     ) {
-        Text(
-            text = stringResource(id = R.string.wizard_step_2_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(id = R.string.wizard_step_2_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
-
-        Spacer(modifier = Modifier.height(12.dp))
-
+        // Search bar
         OutlinedTextField(
             value = searchQuery,
             onValueChange = onSearchChange,
-            placeholder = { Text(stringResource(id = R.string.app_picker_search_hint)) },
+            placeholder = { Text("Filter applications by name...", color = palette.inkSecondary) },
             leadingIcon = {
                 Icon(
                     imageVector = Icons.Default.Search,
                     contentDescription = null,
-                    tint = MaterialTheme.colorScheme.onSurfaceVariant
+                    tint = palette.inkSecondary
                 )
             },
             trailingIcon = {
@@ -550,46 +621,65 @@ private fun WizardStep2AppPicker(
                         Icon(
                             imageVector = Icons.Default.Clear,
                             contentDescription = "Clear search",
+                            tint = palette.inkSecondary,
                             modifier = Modifier.size(18.dp)
                         )
                     }
                 }
             },
             singleLine = true,
-            shape = RoundedCornerShape(10.dp),
-            modifier = Modifier.fillMaxWidth()
+            shape = RoundedCornerShape(2.dp),
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = palette.border,
+                unfocusedBorderColor = palette.hairline,
+                focusedTextColor = palette.ink,
+                unfocusedTextColor = palette.ink,
+                focusedContainerColor = palette.surface,
+                unfocusedContainerColor = palette.surface
+            )
         )
 
         Spacer(modifier = Modifier.height(8.dp))
 
+        // Ledger selection count row
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
             verticalAlignment = Alignment.CenterVertically
         ) {
             Text(
-                text = "${selectedPackages.size} of ${installedApps.size} selected",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.SemiBold,
-                color = MaterialTheme.colorScheme.primary
+                text = "${selectedPackages.size} OF ${installedApps.size} SELECTED",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = palette.ink,
+                letterSpacing = 1.0.sp
             )
             Row {
                 TextButton(
                     onClick = { onSelectAll(filteredApps.map { it.packageName }) }
                 ) {
-                    Text(stringResource(id = R.string.app_picker_select_all), style = MaterialTheme.typography.labelSmall)
+                    Text(
+                        text = "SELECT ALL",
+                        style = MaterialTheme.typography.labelSmall,
+                        color = palette.accent,
+                        fontWeight = FontWeight.Bold
+                    )
                 }
                 TextButton(
                     onClick = onClearAll
                 ) {
                     Text(
-                        stringResource(id = R.string.app_picker_clear_all),
+                        text = "CLEAR",
                         style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.error
+                        color = palette.stamp,
+                        fontWeight = FontWeight.Bold
                     )
                 }
             }
         }
+
+        HorizontalDivider(color = palette.hairline, thickness = 1.dp)
 
         if (filteredApps.isEmpty()) {
             Box(
@@ -599,10 +689,9 @@ private fun WizardStep2AppPicker(
                 contentAlignment = Alignment.Center
             ) {
                 Text(
-                    text = if (installedApps.isEmpty()) stringResource(id = R.string.app_picker_loading)
-                    else stringResource(id = R.string.app_picker_no_apps),
+                    text = if (installedApps.isEmpty()) "Scanning installed packages..." else "No matching applications found.",
                     style = MaterialTheme.typography.bodyMedium,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = palette.inkSecondary
                 )
             }
         } else {
@@ -610,12 +699,12 @@ private fun WizardStep2AppPicker(
                 modifier = Modifier
                     .fillMaxWidth()
                     .weight(1f),
-                verticalArrangement = Arrangement.spacedBy(4.dp),
+                verticalArrangement = Arrangement.spacedBy(2.dp),
                 contentPadding = PaddingValues(vertical = 4.dp)
             ) {
                 items(filteredApps, key = { it.packageName }) { app ->
                     val isSelected = selectedPackages.contains(app.packageName)
-                    WizardAppRow(
+                    LedgerAppRow(
                         app = app,
                         isSelected = isSelected,
                         onToggle = { onTogglePackage(app.packageName) }
@@ -627,23 +716,13 @@ private fun WizardStep2AppPicker(
 }
 
 @Composable
-private fun WizardAppRow(
+private fun LedgerAppRow(
     app: InstalledApp,
     isSelected: Boolean,
     onToggle: () -> Unit
 ) {
+    val palette = LocalPledgePalette.current
     val context = LocalContext.current
-    val initial = app.label.firstOrNull()?.uppercaseChar() ?: 'A'
-    val badgeColor = remember(app.packageName) {
-        val palette = listOf(
-            Color(0xFF3B82F6),
-            Color(0xFF10B981),
-            Color(0xFFF59E0B),
-            Color(0xFF6366F1),
-            Color(0xFF14B8A6)
-        )
-        palette[app.packageName.hashCode().absoluteValue % palette.size]
-    }
 
     val iconBitmap by produceState<androidx.compose.ui.graphics.ImageBitmap?>(
         initialValue = AppIconCache.get(app.packageName),
@@ -658,13 +737,13 @@ private fun WizardAppRow(
         modifier = Modifier
             .fillMaxWidth()
             .clickable(onClick = onToggle),
-        shape = RoundedCornerShape(10.dp),
-        color = if (isSelected) MaterialTheme.colorScheme.surfaceContainerHigh else Color.Transparent
+        color = if (isSelected) palette.hairline.copy(alpha = 0.5f) else Color.Transparent,
+        shape = RoundedCornerShape(2.dp)
     ) {
         Row(
             modifier = Modifier
                 .fillMaxWidth()
-                .padding(horizontal = 10.dp, vertical = 8.dp),
+                .padding(horizontal = 8.dp, vertical = 8.dp),
             verticalAlignment = Alignment.CenterVertically
         ) {
             val bmp = iconBitmap
@@ -673,21 +752,21 @@ private fun WizardAppRow(
                     bitmap = bmp,
                     contentDescription = null,
                     modifier = Modifier
-                        .size(36.dp)
-                        .clip(RoundedCornerShape(8.dp))
+                        .size(32.dp)
+                        .clip(RoundedCornerShape(2.dp))
                 )
             } else {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = badgeColor,
-                    modifier = Modifier.size(36.dp)
+                    shape = RoundedCornerShape(2.dp),
+                    color = palette.hairline,
+                    modifier = Modifier.size(32.dp)
                 ) {
                     Box(contentAlignment = Alignment.Center) {
                         Text(
-                            text = initial.toString(),
+                            text = app.label.firstOrNull()?.uppercase() ?: "A",
                             style = MaterialTheme.typography.titleSmall,
                             fontWeight = FontWeight.Bold,
-                            color = Color.White
+                            color = palette.ink
                         )
                     }
                 }
@@ -700,49 +779,54 @@ private fun WizardAppRow(
                     text = app.label,
                     style = MaterialTheme.typography.bodyMedium,
                     fontWeight = FontWeight.SemiBold,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = palette.ink
                 )
                 Text(
                     text = app.packageName,
-                    style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant,
+                    style = MaterialTheme.typography.labelSmall.tabular(),
+                    color = palette.inkSecondary,
+                    fontSize = 11.sp,
                     maxLines = 1
                 )
             }
 
             Checkbox(
                 checked = isSelected,
-                onCheckedChange = { onToggle() }
+                onCheckedChange = { onToggle() },
+                colors = CheckboxDefaults.colors(
+                    checkedColor = palette.border,
+                    checkmarkColor = palette.surface,
+                    uncheckedColor = palette.hairline
+                )
             )
         }
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 3: Schedule & Restriction (The Core Fix)
+// STEP 3: SCHEDULE EDITING WITH 24-HOUR DRAG TIMELINE & PER-DAY TOGGLES
 // ─────────────────────────────────────────────────────────────────────────────
 
 @OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WizardStep3Schedule(
+private fun WizardStep3ScheduleTimeline(
     schedule: Schedule,
     appCount: Int,
     onScheduleChange: (Schedule) -> Unit
 ) {
     val context = LocalContext.current
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
     val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
 
     val daysList = remember {
         listOf(
-            1 to "Sun", 2 to "Mon", 3 to "Tue", 4 to "Wed", 5 to "Thu", 6 to "Fri", 7 to "Sat"
+            1 to "SUN", 2 to "MON", 3 to "TUE", 4 to "WED", 5 to "THU", 6 to "FRI", 7 to "SAT"
         )
     }
 
     val isFullBlock = schedule.mode == ScheduleMode.BLOCK
-    val isOvernight = remember(schedule.startTime, schedule.endTime) {
-        schedule.startTime != null && schedule.endTime != null && schedule.endTime.isBefore(schedule.startTime)
-    }
+    val currentStart = schedule.startTime ?: LocalTime.of(9, 0)
+    val currentEnd = schedule.endTime ?: LocalTime.of(17, 0)
 
     fun openTimePicker(initial: LocalTime, onSelected: (LocalTime) -> Unit) {
         TimePickerDialog(
@@ -758,122 +842,144 @@ private fun WizardStep3Schedule(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
-        Text(
-            text = stringResource(id = R.string.wizard_step_3_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(id = R.string.wizard_step_3_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
-        )
+        // Active Days Section
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                text = "ACTIVE DAYS",
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.inkSecondary,
+                letterSpacing = 1.2.sp
+            )
+            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
+                TextButton(onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(1, 2, 3, 4, 5, 6, 7))) }) {
+                    Text("ALL", style = MaterialTheme.typography.labelSmall, color = palette.accent, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(2, 3, 4, 5, 6))) }) {
+                    Text("WEEKDAYS", style = MaterialTheme.typography.labelSmall, color = palette.ink, fontWeight = FontWeight.Bold)
+                }
+                TextButton(onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(1, 7))) }) {
+                    Text("WEEKENDS", style = MaterialTheme.typography.labelSmall, color = palette.ink, fontWeight = FontWeight.Bold)
+                }
+            }
+        }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(8.dp))
 
-        // Restriction Goal: 2 Clear Branches
+        // Days square segments
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(4.dp)
+        ) {
+            daysList.forEach { (dayNum, dayLabel) ->
+                val selected = schedule.daysOfWeek.contains(dayNum)
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(38.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(1.dp, if (selected) palette.border else palette.hairline, RoundedCornerShape(2.dp))
+                        .clickable {
+                            val updated = if (selected) schedule.daysOfWeek - dayNum else schedule.daysOfWeek + dayNum
+                            onScheduleChange(schedule.copy(daysOfWeek = updated))
+                        },
+                    color = if (selected) palette.border else palette.surface
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = dayLabel,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (selected) palette.surface else palette.ink
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Restriction Mode Toggle
         Text(
-            text = "Restriction Mode",
-            style = MaterialTheme.typography.labelMedium,
-            fontWeight = FontWeight.Bold,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "RESTRICTION MODE",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.2.sp
         )
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(
             modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.spacedBy(10.dp)
+            horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Card 1: Full Blackout
-            Card(
+            // Mode 1: Full Blackout
+            Surface(
                 modifier = Modifier
                     .weight(1f)
+                    .clip(RoundedCornerShape(3.dp))
+                    .border(BorderStroke(if (isFullBlock) 2.dp else 1.dp, if (isFullBlock) palette.border else palette.hairline), RoundedCornerShape(3.dp))
                     .clickable {
                         onScheduleChange(
                             schedule.copy(
                                 mode = ScheduleMode.BLOCK,
                                 type = ScheduleType.RECURRING,
-                                startTime = schedule.startTime ?: LocalTime.of(9, 0),
-                                endTime = schedule.endTime ?: LocalTime.of(17, 0)
+                                startTime = currentStart,
+                                endTime = currentEnd
                             )
                         )
                     },
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (isFullBlock) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    else MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(
-                    width = if (isFullBlock) 2.dp else 1.dp,
-                    color = if (isFullBlock) MaterialTheme.colorScheme.primary else customColors.cardBorder
-                )
+                color = if (isFullBlock) palette.surface else palette.surface
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.Block,
-                        contentDescription = null,
-                        tint = if (isFullBlock) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = stringResource(id = R.string.wizard_rule_blackout),
+                        text = "FULL BLACKOUT",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = palette.ink
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = stringResource(id = R.string.wizard_rule_blackout_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Block apps completely during designated hours",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.inkSecondary
                     )
                 }
             }
 
-            // Card 2: Time Allowance
-            Card(
+            // Mode 2: Time Allowance
+            Surface(
                 modifier = Modifier
                     .weight(1f)
+                    .clip(RoundedCornerShape(3.dp))
+                    .border(BorderStroke(if (!isFullBlock) 2.dp else 1.dp, if (!isFullBlock) palette.border else palette.hairline), RoundedCornerShape(3.dp))
                     .clickable {
                         onScheduleChange(
                             schedule.copy(
                                 mode = ScheduleMode.USAGE_LIMIT,
-                                type = if (schedule.type == ScheduleType.HOURLY || schedule.type == ScheduleType.DAILY) schedule.type else ScheduleType.DAILY,
-                                usageLimitMinutes = if (schedule.usageLimitMinutes > 0) schedule.usageLimitMinutes else 30,
-                                limitScope = schedule.limitScope
+                                type = ScheduleType.DAILY,
+                                usageLimitMinutes = if (schedule.usageLimitMinutes > 0) schedule.usageLimitMinutes else 30
                             )
                         )
                     },
-                shape = RoundedCornerShape(12.dp),
-                colors = CardDefaults.cardColors(
-                    containerColor = if (!isFullBlock) MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.3f)
-                    else MaterialTheme.colorScheme.surface
-                ),
-                border = BorderStroke(
-                    width = if (!isFullBlock) 2.dp else 1.dp,
-                    color = if (!isFullBlock) MaterialTheme.colorScheme.primary else customColors.cardBorder
-                )
+                color = palette.surface
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
-                    Icon(
-                        imageVector = Icons.Default.HourglassTop,
-                        contentDescription = null,
-                        tint = if (!isFullBlock) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.onSurfaceVariant,
-                        modifier = Modifier.size(24.dp)
-                    )
-                    Spacer(modifier = Modifier.height(8.dp))
                     Text(
-                        text = stringResource(id = R.string.wizard_rule_allowance),
+                        text = "USAGE ALLOWANCE",
                         style = MaterialTheme.typography.titleSmall,
-                        fontWeight = FontWeight.Bold
+                        fontWeight = FontWeight.Bold,
+                        color = palette.ink
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = stringResource(id = R.string.wizard_rule_allowance_desc),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
+                        text = "Permit limited screen time quota before locking",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.inkSecondary
                     )
                 }
             }
@@ -881,131 +987,116 @@ private fun WizardStep3Schedule(
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // BRANCH 1: FULL BLACKOUT SETTINGS
         if (isFullBlock) {
-            Text(
-                text = "Blocked Time Window",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+            // PRIMARY 24-HOUR DRAG TIMELINE
+            DayTimeline24hEditor(
+                startTime = currentStart,
+                endTime = currentEnd,
+                onRangeChanged = { newStart, newEnd ->
+                    onScheduleChange(schedule.copy(startTime = newStart, endTime = newEnd))
+                }
             )
-            Spacer(modifier = Modifier.height(8.dp))
 
-            val currentStart = schedule.startTime ?: LocalTime.of(9, 0)
-            val currentEnd = schedule.endTime ?: LocalTime.of(17, 0)
+            Spacer(modifier = Modifier.height(14.dp))
 
-            Row(modifier = Modifier.fillMaxWidth()) {
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(id = R.string.schedule_start_time),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                openTimePicker(currentStart) { newTime ->
-                                    onScheduleChange(schedule.copy(startTime = newTime))
-                                }
-                            },
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, customColors.cardBorder)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(currentStart.format(timeFormatter), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
+            // Numeric Time Pickers as Fallback
+            Text(
+                text = "NUMERIC TIME PICKERS (TAP TO FINE-TUNE)",
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.inkSecondary,
+                letterSpacing = 1.0.sp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
 
-                Spacer(modifier = Modifier.width(12.dp))
-
-                Column(modifier = Modifier.weight(1f)) {
-                    Text(
-                        text = stringResource(id = R.string.schedule_end_time),
-                        style = MaterialTheme.typography.labelSmall,
-                        color = MaterialTheme.colorScheme.onSurfaceVariant
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    OutlinedCard(
-                        modifier = Modifier
-                            .fillMaxWidth()
-                            .clickable {
-                                openTimePicker(currentEnd) { newTime ->
-                                    onScheduleChange(schedule.copy(endTime = newTime))
-                                }
-                            },
-                        shape = RoundedCornerShape(10.dp),
-                        border = BorderStroke(1.dp, customColors.cardBorder)
-                    ) {
-                        Row(
-                            modifier = Modifier.padding(12.dp),
-                            verticalAlignment = Alignment.CenterVertically
-                        ) {
-                            Icon(Icons.Default.AccessTime, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(18.dp))
-                            Spacer(modifier = Modifier.width(8.dp))
-                            Text(currentEnd.format(timeFormatter), style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.Bold)
-                        }
-                    }
-                }
-            }
-
-            if (isOvernight) {
-                Spacer(modifier = Modifier.height(8.dp))
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(8.dp)
+            ) {
                 Surface(
-                    shape = RoundedCornerShape(8.dp),
-                    color = MaterialTheme.colorScheme.surfaceContainerHigh
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(1.dp, palette.hairline, RoundedCornerShape(2.dp))
+                        .clickable { openTimePicker(currentStart) { onScheduleChange(schedule.copy(startTime = it)) } },
+                    color = palette.surface
                 ) {
                     Row(
-                        modifier = Modifier.padding(horizontal = 10.dp, vertical = 6.dp),
+                        modifier = Modifier.padding(10.dp),
                         verticalAlignment = Alignment.CenterVertically
                     ) {
-                        Icon(Icons.Default.Nightlight, contentDescription = null, tint = MaterialTheme.colorScheme.primary, modifier = Modifier.size(14.dp))
-                        Spacer(modifier = Modifier.width(6.dp))
+                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = palette.inkSecondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
                         Text(
-                            text = "Overnight window: ends the following morning",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
+                            text = "START: ${currentStart.format(timeFormatter)}",
+                            style = MaterialTheme.typography.titleSmall.tabular(),
+                            fontWeight = FontWeight.Bold,
+                            color = palette.ink
+                        )
+                    }
+                }
+
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(1.dp, palette.hairline, RoundedCornerShape(2.dp))
+                        .clickable { openTimePicker(currentEnd) { onScheduleChange(schedule.copy(endTime = it)) } },
+                    color = palette.surface
+                ) {
+                    Row(
+                        modifier = Modifier.padding(10.dp),
+                        verticalAlignment = Alignment.CenterVertically
+                    ) {
+                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = palette.inkSecondary, modifier = Modifier.size(16.dp))
+                        Spacer(modifier = Modifier.width(8.dp))
+                        Text(
+                            text = "END: ${currentEnd.format(timeFormatter)}",
+                            style = MaterialTheme.typography.titleSmall.tabular(),
+                            fontWeight = FontWeight.Bold,
+                            color = palette.ink
                         )
                     }
                 }
             }
         } else {
-            // BRANCH 2: TIME ALLOWANCE SETTINGS
+            // USAGE ALLOWANCE SETTINGS
             Text(
-                text = "Allowed Duration",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
+                text = "DAILY QUOTA MINUTES",
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.inkSecondary,
+                letterSpacing = 1.0.sp
             )
             Spacer(modifier = Modifier.height(8.dp))
 
             val allowancePresets = listOf(15, 30, 45, 60, 90)
-            FlowRow(
-                horizontalArrangement = Arrangement.spacedBy(8.dp),
-                verticalArrangement = Arrangement.spacedBy(8.dp),
-                modifier = Modifier.fillMaxWidth()
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.spacedBy(6.dp)
             ) {
                 allowancePresets.forEach { mins ->
-                    FilterChip(
-                        selected = schedule.usageLimitMinutes == mins,
-                        onClick = { onScheduleChange(schedule.copy(usageLimitMinutes = mins)) },
-                        label = { Text("$mins min") },
-                        colors = FilterChipDefaults.filterChipColors(
-                            selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                            selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                        )
-                    )
+                    val isSelected = schedule.usageLimitMinutes == mins
+                    Surface(
+                        modifier = Modifier
+                            .weight(1f)
+                            .height(40.dp)
+                            .clip(RoundedCornerShape(2.dp))
+                            .border(1.dp, if (isSelected) palette.border else palette.hairline, RoundedCornerShape(2.dp))
+                            .clickable { onScheduleChange(schedule.copy(usageLimitMinutes = mins)) },
+                        color = if (isSelected) palette.border else palette.surface
+                    ) {
+                        Box(contentAlignment = Alignment.Center) {
+                            Text(
+                                text = "${mins}M",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) palette.surface else palette.ink
+                            )
+                        }
+                    }
                 }
             }
 
-            Spacer(modifier = Modifier.height(8.dp))
+            Spacer(modifier = Modifier.height(10.dp))
 
             OutlinedTextField(
                 value = if (schedule.usageLimitMinutes > 0) schedule.usageLimitMinutes.toString() else "",
@@ -1013,388 +1104,196 @@ private fun WizardStep3Schedule(
                     val mins = input.filter { it.isDigit() }.toIntOrNull() ?: 0
                     onScheduleChange(schedule.copy(usageLimitMinutes = mins))
                 },
-                label = { Text("Custom minutes") },
-                placeholder = { Text("e.g. 20") },
+                label = { Text("CUSTOM QUOTA (MINUTES)") },
                 keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 singleLine = true,
-                shape = RoundedCornerShape(10.dp),
-                modifier = Modifier.fillMaxWidth()
-            )
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Reset Frequency
-            Text(
-                text = "Reset Cadence",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
+                shape = RoundedCornerShape(2.dp),
                 modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = schedule.type == ScheduleType.DAILY,
-                    onClick = { onScheduleChange(schedule.copy(type = ScheduleType.DAILY)) },
-                    label = { Text("Daily (resets midnight)") },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
+                colors = OutlinedTextFieldDefaults.colors(
+                    focusedBorderColor = palette.border,
+                    unfocusedBorderColor = palette.hairline,
+                    focusedTextColor = palette.ink,
+                    unfocusedTextColor = palette.ink
                 )
-                FilterChip(
-                    selected = schedule.type == ScheduleType.HOURLY,
-                    onClick = { onScheduleChange(schedule.copy(type = ScheduleType.HOURLY)) },
-                    label = { Text("Hourly (resets on :00)") },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-            }
-
-            Spacer(modifier = Modifier.height(16.dp))
-
-            // Quota Scope
-            Text(
-                text = "Quota Sharing",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
             )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                FilterChip(
-                    selected = schedule.limitScope == LimitScope.COMBINED,
-                    onClick = { onScheduleChange(schedule.copy(limitScope = LimitScope.COMBINED)) },
-                    label = { Text("Shared pool (all apps)") },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-                FilterChip(
-                    selected = schedule.limitScope == LimitScope.PER_APP,
-                    onClick = { onScheduleChange(schedule.copy(limitScope = LimitScope.PER_APP)) },
-                    label = { Text("Per app individually") },
-                    modifier = Modifier.weight(1f),
-                    colors = FilterChipDefaults.filterChipColors(
-                        selectedContainerColor = MaterialTheme.colorScheme.primaryContainer,
-                        selectedLabelColor = MaterialTheme.colorScheme.onPrimaryContainer
-                    )
-                )
-            }
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // DAYS OF WEEK
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            verticalAlignment = Alignment.CenterVertically,
-            horizontalArrangement = Arrangement.SpaceBetween
+        // Contract Plain-English Summary
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.dp, palette.hairline), RoundedCornerShape(2.dp)),
+            color = palette.surface
         ) {
-            Text(
-                text = "Active Days",
-                style = MaterialTheme.typography.labelMedium,
-                fontWeight = FontWeight.Bold,
-                color = MaterialTheme.colorScheme.onSurfaceVariant
-            )
-
-            Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(
-                    onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(1, 2, 3, 4, 5, 6, 7))) }
-                ) {
-                    Text("All", style = MaterialTheme.typography.labelSmall)
-                }
-                TextButton(
-                    onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(2, 3, 4, 5, 6))) }
-                ) {
-                    Text("Weekdays", style = MaterialTheme.typography.labelSmall)
-                }
-                TextButton(
-                    onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(1, 7))) }
-                ) {
-                    Text("Weekends", style = MaterialTheme.typography.labelSmall)
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(8.dp))
-
-        Row(
-            modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.SpaceBetween,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            daysList.forEach { (dayNum, dayLabel) ->
-                val selected = schedule.daysOfWeek.contains(dayNum)
-                Box(
-                    modifier = Modifier
-                        .size(44.dp)
-                        .clickable {
-                            val updated = if (selected) schedule.daysOfWeek - dayNum else schedule.daysOfWeek + dayNum
-                            onScheduleChange(schedule.copy(daysOfWeek = updated))
-                        },
-                    contentAlignment = Alignment.Center
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (selected) MaterialTheme.colorScheme.primary else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        border = if (selected) null else BorderStroke(1.dp, customColors.cardBorder),
-                        modifier = Modifier.size(38.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = dayLabel.take(2),
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (selected) MaterialTheme.colorScheme.onPrimary else MaterialTheme.colorScheme.onSurface
-                            )
-                        }
-                    }
-                }
-            }
-        }
-
-        Spacer(modifier = Modifier.height(24.dp))
-
-        // LIVE PLAIN-ENGLISH SUMMARY CARD
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(12.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = MaterialTheme.colorScheme.primaryContainer.copy(alpha = 0.2f)
-            ),
-            border = BorderStroke(1.dp, MaterialTheme.colorScheme.primary.copy(alpha = 0.4f))
-        ) {
-            Row(
-                modifier = Modifier.padding(14.dp),
-                verticalAlignment = Alignment.Top
-            ) {
-                Icon(
-                    imageVector = Icons.Default.Info,
-                    contentDescription = null,
-                    tint = MaterialTheme.colorScheme.primary,
-                    modifier = Modifier
-                        .size(18.dp)
-                        .padding(top = 2.dp)
+            Column(modifier = Modifier.padding(14.dp)) {
+                Text(
+                    text = "CONTRACT ENFORCEMENT SUMMARY",
+                    style = MaterialTheme.typography.labelSmall,
+                    fontWeight = FontWeight.Bold,
+                    color = palette.inkSecondary,
+                    letterSpacing = 1.0.sp
                 )
-                Spacer(modifier = Modifier.width(10.dp))
-                Column {
-                    Text(
-                        text = "Rule Summary",
-                        style = MaterialTheme.typography.labelMedium,
-                        fontWeight = FontWeight.Bold,
-                        color = MaterialTheme.colorScheme.primary
-                    )
-                    Spacer(modifier = Modifier.height(4.dp))
-                    Text(
-                        text = ProfilePresets.getExplanation(schedule, appCount),
-                        style = MaterialTheme.typography.bodySmall,
-                        color = MaterialTheme.colorScheme.onSurface
-                    )
-                }
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = ProfilePresets.getExplanation(schedule, appCount),
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.ink
+                )
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 4: Review & Activate
+// STEP 4: REVIEW & PLEDGE
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WizardStep4Review(
+private fun WizardStep4PledgeReview(
     profileName: String,
     selectedApps: List<InstalledApp>,
     schedule: Schedule,
     strict: Boolean,
     onStrictChange: (Boolean) -> Unit
 ) {
-    val customColors = LocalCustomColors.current
+    val palette = LocalPledgePalette.current
 
     Column(
         modifier = Modifier
             .fillMaxSize()
             .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 8.dp)
+            .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
-            text = stringResource(id = R.string.wizard_step_4_title),
-            style = MaterialTheme.typography.titleLarge,
-            fontWeight = FontWeight.Bold
-        )
-        Text(
-            text = stringResource(id = R.string.wizard_step_4_subtitle),
-            style = MaterialTheme.typography.bodySmall,
-            color = MaterialTheme.colorScheme.onSurfaceVariant
+            text = "CONTRACT SPECIFICATION",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.2.sp
         )
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(10.dp))
 
-        // Profile Overview Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(containerColor = MaterialTheme.colorScheme.surface),
-            border = BorderStroke(1.dp, customColors.cardBorder)
+        // Document Ledger Sheet Card
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(2.dp, palette.border), RoundedCornerShape(3.dp)),
+            color = palette.surface
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Text(
-                    text = "Profile Overview",
-                    style = MaterialTheme.typography.titleSmall,
-                    fontWeight = FontWeight.Bold
-                )
-                Spacer(modifier = Modifier.height(12.dp))
-
+            Column(modifier = Modifier.padding(18.dp)) {
                 Row(
                     modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
                     verticalAlignment = Alignment.CenterVertically
                 ) {
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Profile Name",
-                            style = MaterialTheme.typography.labelSmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                        Text(
-                            text = profileName,
-                            style = MaterialTheme.typography.titleMedium,
-                            fontWeight = FontWeight.Bold
-                        )
-                    }
-                    Surface(
-                        shape = CircleShape,
-                        color = MaterialTheme.colorScheme.primaryContainer
-                    ) {
-                        Text(
-                            text = "${selectedApps.size} apps selected",
-                            style = MaterialTheme.typography.labelSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = MaterialTheme.colorScheme.onPrimaryContainer,
-                            modifier = Modifier.padding(horizontal = 10.dp, vertical = 4.dp)
-                        )
-                    }
+                    Text(
+                        text = profileName.ifBlank { "UNTITLED PROFILE" }.uppercase(),
+                        style = MaterialTheme.typography.headlineLarge,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.ink
+                    )
+                    StampLabel(text = if (strict) "STRICT PLEDGE" else "STANDARD", rotation = 0f)
                 }
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
+                HorizontalDivider(color = palette.hairline, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
 
+                // Detail item 1: Apps
                 Text(
-                    text = "Target Apps Preview",
+                    text = "TARGET APPLICATIONS",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = palette.inkSecondary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                Text(
+                    text = if (selectedApps.isEmpty()) "No apps selected"
+                    else selectedApps.joinToString(", ") { it.label },
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.Medium,
+                    color = palette.ink
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
+                // Detail item 2: Schedule bar
+                Text(
+                    text = "SCHEDULE TIMELINE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.inkSecondary
                 )
                 Spacer(modifier = Modifier.height(6.dp))
-                val appLabels = selectedApps.map { it.label }.take(6)
-                Text(
-                    text = if (selectedApps.size > 6) {
-                        appLabels.joinToString(", ") + ", and ${selectedApps.size - 6} more"
-                    } else {
-                        appLabels.joinToString(", ")
-                    },
-                    style = MaterialTheme.typography.bodySmall,
-                    color = MaterialTheme.colorScheme.onSurface
+                DayBar24h(
+                    startTime = schedule.startTime,
+                    endTime = schedule.endTime,
+                    isBlockMode = schedule.mode == ScheduleMode.BLOCK,
+                    height = 10.dp
                 )
 
-                Spacer(modifier = Modifier.height(14.dp))
+                Spacer(modifier = Modifier.height(12.dp))
 
+                // Detail item 3: Summary explanation
                 Text(
-                    text = "Schedule Rule",
+                    text = "ENFORCEMENT TERMS",
                     style = MaterialTheme.typography.labelSmall,
-                    color = MaterialTheme.colorScheme.onSurfaceVariant
+                    color = palette.inkSecondary
                 )
                 Spacer(modifier = Modifier.height(4.dp))
                 Text(
                     text = ProfilePresets.getExplanation(schedule, selectedApps.size),
                     style = MaterialTheme.typography.bodySmall,
-                    fontWeight = FontWeight.Medium,
-                    color = MaterialTheme.colorScheme.onSurface
+                    color = palette.ink
                 )
             }
         }
 
-        Spacer(modifier = Modifier.height(16.dp))
+        Spacer(modifier = Modifier.height(20.dp))
 
-        // Strict Mode Protection Card
-        Card(
-            modifier = Modifier.fillMaxWidth(),
-            shape = RoundedCornerShape(14.dp),
-            colors = CardDefaults.cardColors(
-                containerColor = if (strict) customColors.strictContainer.copy(alpha = 0.4f)
-                else MaterialTheme.colorScheme.surface
-            ),
-            border = BorderStroke(
-                width = 1.dp,
-                color = if (strict) customColors.strictAmber.copy(alpha = 0.7f) else customColors.cardBorder
-            )
+        // Strict Lock Toggle
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(BorderStroke(1.5.dp, if (strict) palette.stamp else palette.hairline), RoundedCornerShape(3.dp)),
+            color = if (strict) palette.stampSurface else palette.surface
         ) {
-            Column(modifier = Modifier.padding(16.dp)) {
-                Row(
-                    modifier = Modifier.fillMaxWidth(),
-                    verticalAlignment = Alignment.CenterVertically
-                ) {
-                    Surface(
-                        shape = CircleShape,
-                        color = if (strict) customColors.strictAmber.copy(alpha = 0.25f)
-                        else MaterialTheme.colorScheme.surfaceContainerHigh,
-                        modifier = Modifier.size(36.dp)
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Icon(
-                                imageVector = Icons.Default.Lock,
-                                contentDescription = null,
-                                tint = if (strict) customColors.strictAmber else MaterialTheme.colorScheme.onSurfaceVariant,
-                                modifier = Modifier.size(18.dp)
-                            )
-                        }
-                    }
-
-                    Spacer(modifier = Modifier.width(12.dp))
-
-                    Column(modifier = Modifier.weight(1f)) {
-                        Text(
-                            text = "Strict Mode Protection",
-                            style = MaterialTheme.typography.titleSmall,
-                            fontWeight = FontWeight.Bold,
-                            color = if (strict) customColors.strictAmber else MaterialTheme.colorScheme.onSurface
-                        )
-                        Text(
-                            text = "Prevent tampering during active block sessions",
-                            style = MaterialTheme.typography.bodySmall,
-                            color = MaterialTheme.colorScheme.onSurfaceVariant
-                        )
-                    }
-
-                    Switch(
-                        checked = strict,
-                        onCheckedChange = onStrictChange
-                    )
-                }
-
-                if (strict) {
-                    Spacer(modifier = Modifier.height(10.dp))
+            Row(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .padding(16.dp),
+                verticalAlignment = Alignment.CenterVertically,
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Column(modifier = Modifier.weight(1f)) {
                     Text(
-                        text = "Once an active block session starts, this profile cannot be paused, shortened, edited, or uninstalled until the session period concludes.",
-                        style = MaterialTheme.typography.labelSmall,
-                        color = customColors.strictAmber
+                        text = "ENFORCE IN STRICT MODE",
+                        style = MaterialTheme.typography.titleSmall,
+                        fontWeight = FontWeight.Bold,
+                        color = if (strict) palette.stamp else palette.ink,
+                        letterSpacing = 0.8.sp
+                    )
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(
+                        text = "Locks this profile against modification or deletion while Strict Mode is active on your device.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.inkSecondary
                     )
                 }
+
+                Spacer(modifier = Modifier.width(16.dp))
+
+                Switch(
+                    checked = strict,
+                    onCheckedChange = onStrictChange,
+                    colors = SwitchDefaults.colors(
+                        checkedThumbColor = palette.surface,
+                        checkedTrackColor = palette.stamp,
+                        uncheckedThumbColor = palette.inkSecondary,
+                        uncheckedTrackColor = palette.surface
+                    )
+                )
             }
         }
-
-        Spacer(modifier = Modifier.height(24.dp))
     }
 }
