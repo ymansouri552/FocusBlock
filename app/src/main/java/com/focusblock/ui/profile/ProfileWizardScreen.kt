@@ -129,7 +129,7 @@ fun ProfileWizardScreen(
                             color = palette.ink
                         )
                         Text(
-                            text = "STEP ${state.step} / 4",
+                            text = "STEP ${state.step} / 5",
                             style = MaterialTheme.typography.labelMedium,
                             fontWeight = FontWeight.Bold,
                             color = palette.accent,
@@ -196,7 +196,7 @@ fun ProfileWizardScreen(
                     // Primary Full-width, square-edged button
                     Button(
                         onClick = {
-                            if (state.step == 4) {
+                            if (state.step == 5) {
                                 viewModel.save(onSuccess = onBack)
                             } else {
                                 viewModel.nextStep()
@@ -222,8 +222,9 @@ fun ProfileWizardScreen(
                         } else {
                             val buttonText = when (state.step) {
                                 1 -> "NEXT: SELECT APPS"
-                                2 -> "NEXT: SET SCHEDULE (${state.selectedPackages.size})"
-                                3 -> "NEXT: REVIEW & PLEDGE"
+                                2 -> "NEXT: CHOOSE MODE (${state.selectedPackages.size})"
+                                3 -> if (state.schedule.mode == ScheduleMode.BLOCK) "NEXT: SET BLACKOUT SCHEDULE" else "NEXT: SET ALLOWANCE & TIMEFRAME"
+                                4 -> "NEXT: REVIEW & PLEDGE"
                                 else -> "SEAL & SAVE CONTRACT"
                             }
                             Text(
@@ -247,7 +248,7 @@ fun ProfileWizardScreen(
             // Thin progress line across the top
             ThinStepProgressLine(
                 currentStep = state.step,
-                totalSteps = 4,
+                totalSteps = 5,
                 modifier = Modifier.fillMaxWidth()
             )
 
@@ -314,12 +315,24 @@ fun ProfileWizardScreen(
                         onSelectAll = { viewModel.selectAllFilteredApps(it) },
                         onClearAll = { viewModel.clearAllSelectedPackages() }
                     )
-                    3 -> WizardStep3ScheduleTimeline(
-                        schedule = state.schedule,
-                        appCount = state.selectedPackages.size,
-                        onScheduleChange = { viewModel.setSchedule(it) }
+                    3 -> WizardStep3ModeSelection(
+                        selectedMode = state.schedule.mode,
+                        onSelectMode = { viewModel.setScheduleMode(it) }
                     )
-                    4 -> WizardStep4PledgeReview(
+                    4 -> if (state.schedule.mode == ScheduleMode.BLOCK) {
+                        WizardStep4BlackoutSchedule(
+                            schedule = state.schedule,
+                            appCount = state.selectedPackages.size,
+                            onScheduleChange = { viewModel.setSchedule(it) }
+                        )
+                    } else {
+                        WizardStep4UsageAllowance(
+                            schedule = state.schedule,
+                            appCount = state.selectedPackages.size,
+                            onScheduleChange = { viewModel.setSchedule(it) }
+                        )
+                    }
+                    5 -> WizardStep5PledgeReview(
                         profileName = state.profileName,
                         selectedApps = state.installedApps.filter { state.selectedPackages.contains(it.packageName) },
                         schedule = state.schedule,
@@ -804,47 +817,22 @@ private fun LedgerAppRow(
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 3: SCHEDULE EDITING WITH 24-HOUR DRAG TIMELINE & PER-DAY TOGGLES
+// REUSABLE LEDGER HELPERS: ACTIVE DAYS, TIME PICKERS & SUMMARY
 // ─────────────────────────────────────────────────────────────────────────────
 
-@OptIn(ExperimentalLayoutApi::class)
 @Composable
-private fun WizardStep3ScheduleTimeline(
-    schedule: Schedule,
-    appCount: Int,
-    onScheduleChange: (Schedule) -> Unit
+private fun ActiveDaysSelector(
+    selectedDays: Set<Int>,
+    onDaysChanged: (Set<Int>) -> Unit
 ) {
-    val context = LocalContext.current
     val palette = LocalPledgePalette.current
-    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
-
     val daysList = remember {
         listOf(
             1 to "SUN", 2 to "MON", 3 to "TUE", 4 to "WED", 5 to "THU", 6 to "FRI", 7 to "SAT"
         )
     }
 
-    val isFullBlock = schedule.mode == ScheduleMode.BLOCK
-    val currentStart = schedule.startTime ?: LocalTime.of(9, 0)
-    val currentEnd = schedule.endTime ?: LocalTime.of(17, 0)
-
-    fun openTimePicker(initial: LocalTime, onSelected: (LocalTime) -> Unit) {
-        TimePickerDialog(
-            context,
-            { _, hourOfDay, minute -> onSelected(LocalTime.of(hourOfDay, minute)) },
-            initial.hour,
-            initial.minute,
-            DateFormat.is24HourFormat(context)
-        ).show()
-    }
-
-    Column(
-        modifier = Modifier
-            .fillMaxSize()
-            .verticalScroll(rememberScrollState())
-            .padding(horizontal = 16.dp, vertical = 12.dp)
-    ) {
-        // Active Days Section
+    Column(modifier = Modifier.fillMaxWidth()) {
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.SpaceBetween,
@@ -857,13 +845,13 @@ private fun WizardStep3ScheduleTimeline(
                 letterSpacing = 1.2.sp
             )
             Row(horizontalArrangement = Arrangement.spacedBy(4.dp)) {
-                TextButton(onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(1, 2, 3, 4, 5, 6, 7))) }) {
+                TextButton(onClick = { onDaysChanged(setOf(1, 2, 3, 4, 5, 6, 7)) }) {
                     Text("ALL", style = MaterialTheme.typography.labelSmall, color = palette.accent, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(2, 3, 4, 5, 6))) }) {
+                TextButton(onClick = { onDaysChanged(setOf(2, 3, 4, 5, 6)) }) {
                     Text("WEEKDAYS", style = MaterialTheme.typography.labelSmall, color = palette.ink, fontWeight = FontWeight.Bold)
                 }
-                TextButton(onClick = { onScheduleChange(schedule.copy(daysOfWeek = setOf(1, 7))) }) {
+                TextButton(onClick = { onDaysChanged(setOf(1, 7)) }) {
                     Text("WEEKENDS", style = MaterialTheme.typography.labelSmall, color = palette.ink, fontWeight = FontWeight.Bold)
                 }
             }
@@ -871,13 +859,12 @@ private fun WizardStep3ScheduleTimeline(
 
         Spacer(modifier = Modifier.height(8.dp))
 
-        // Days square segments
         Row(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(4.dp)
         ) {
             daysList.forEach { (dayNum, dayLabel) ->
-                val selected = schedule.daysOfWeek.contains(dayNum)
+                val selected = selectedDays.contains(dayNum)
                 Surface(
                     modifier = Modifier
                         .weight(1f)
@@ -885,8 +872,8 @@ private fun WizardStep3ScheduleTimeline(
                         .clip(RoundedCornerShape(2.dp))
                         .border(1.dp, if (selected) palette.border else palette.hairline, RoundedCornerShape(2.dp))
                         .clickable {
-                            val updated = if (selected) schedule.daysOfWeek - dayNum else schedule.daysOfWeek + dayNum
-                            onScheduleChange(schedule.copy(daysOfWeek = updated))
+                            val updated = if (selected) selectedDays - dayNum else selectedDays + dayNum
+                            onDaysChanged(updated)
                         },
                     color = if (selected) palette.border else palette.surface
                 ) {
@@ -901,12 +888,688 @@ private fun WizardStep3ScheduleTimeline(
                 }
             }
         }
+    }
+}
+
+@Composable
+private fun TimePickersRow(
+    startTime: LocalTime,
+    endTime: LocalTime,
+    onStartTimeChanged: (LocalTime) -> Unit,
+    onEndTimeChanged: (LocalTime) -> Unit
+) {
+    val context = LocalContext.current
+    val palette = LocalPledgePalette.current
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+    fun openPicker(initial: LocalTime, onSelected: (LocalTime) -> Unit) {
+        TimePickerDialog(
+            context,
+            { _, hourOfDay, minute -> onSelected(LocalTime.of(hourOfDay, minute)) },
+            initial.hour,
+            initial.minute,
+            DateFormat.is24HourFormat(context)
+        ).show()
+    }
+
+    Row(
+        modifier = Modifier.fillMaxWidth(),
+        horizontalArrangement = Arrangement.spacedBy(8.dp)
+    ) {
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(2.dp))
+                .border(1.dp, palette.hairline, RoundedCornerShape(2.dp))
+                .clickable { openPicker(startTime, onStartTimeChanged) },
+            color = palette.surface
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.AccessTime, contentDescription = null, tint = palette.inkSecondary, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "START: ${startTime.format(timeFormatter)}",
+                    style = MaterialTheme.typography.titleSmall.tabular(),
+                    fontWeight = FontWeight.Bold,
+                    color = palette.ink
+                )
+            }
+        }
+
+        Surface(
+            modifier = Modifier
+                .weight(1f)
+                .clip(RoundedCornerShape(2.dp))
+                .border(1.dp, palette.hairline, RoundedCornerShape(2.dp))
+                .clickable { openPicker(endTime, onEndTimeChanged) },
+            color = palette.surface
+        ) {
+            Row(
+                modifier = Modifier.padding(10.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(Icons.Default.AccessTime, contentDescription = null, tint = palette.inkSecondary, modifier = Modifier.size(16.dp))
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = "END: ${endTime.format(timeFormatter)}",
+                    style = MaterialTheme.typography.titleSmall.tabular(),
+                    fontWeight = FontWeight.Bold,
+                    color = palette.ink
+                )
+            }
+        }
+    }
+}
+
+@Composable
+private fun ContractSummaryCard(
+    schedule: Schedule,
+    appCount: Int
+) {
+    val palette = LocalPledgePalette.current
+    Surface(
+        modifier = Modifier
+            .fillMaxWidth()
+            .border(BorderStroke(1.dp, palette.hairline), RoundedCornerShape(2.dp)),
+        color = palette.surface
+    ) {
+        Column(modifier = Modifier.padding(14.dp)) {
+            Text(
+                text = "CONTRACT ENFORCEMENT SUMMARY",
+                style = MaterialTheme.typography.labelSmall,
+                fontWeight = FontWeight.Bold,
+                color = palette.inkSecondary,
+                letterSpacing = 1.0.sp
+            )
+            Spacer(modifier = Modifier.height(6.dp))
+            Text(
+                text = ProfilePresets.getExplanation(schedule, appCount),
+                style = MaterialTheme.typography.bodySmall,
+                color = palette.ink
+            )
+        }
+    }
+}
+
+@Composable
+private fun ModeFeatureBullet(text: String) {
+    val palette = LocalPledgePalette.current
+    Row(verticalAlignment = Alignment.CenterVertically) {
+        Box(
+            modifier = Modifier
+                .size(4.dp)
+                .background(palette.accent)
+        )
+        Spacer(modifier = Modifier.width(8.dp))
+        Text(
+            text = text,
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.inkSecondary
+        )
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 3: DEDICATED RESTRICTION MODE SELECTION (BLACKOUT vs USAGE ALLOWANCE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun WizardStep3ModeSelection(
+    selectedMode: ScheduleMode,
+    onSelectMode: (ScheduleMode) -> Unit
+) {
+    val palette = LocalPledgePalette.current
+    val isBlackout = selectedMode == ScheduleMode.BLOCK
+    val isAllowance = selectedMode == ScheduleMode.USAGE_LIMIT
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = "CHOOSE RESTRICTION DISCIPLINE",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.5.sp
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "RESTRICTION MODE",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = palette.ink
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Select how FocusBlock enforces barriers on your target applications.",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.inkSecondary
+        )
 
         Spacer(modifier = Modifier.height(20.dp))
 
-        // Restriction Mode Toggle
+        // Option 1: Full Blackout Card
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(3.dp))
+                .border(
+                    BorderStroke(if (isBlackout) 2.dp else 1.dp, if (isBlackout) palette.border else palette.hairline),
+                    RoundedCornerShape(3.dp)
+                )
+                .clickable { onSelectMode(ScheduleMode.BLOCK) },
+            color = palette.surface
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "FULL BLACKOUT",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.ink,
+                        letterSpacing = 0.5.sp
+                    )
+                    if (isBlackout) {
+                        StampLabel(text = "SELECTED", rotation = 0f)
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(2.dp),
+                            color = palette.hairline.copy(alpha = 0.3f),
+                            border = BorderStroke(1.dp, palette.hairline)
+                        ) {
+                            Text(
+                                text = "BLOCK",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.inkSecondary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Complete obstruction during designated active windows. Once active, applications cannot be opened under any circumstance.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.ink
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = palette.hairline, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeFeatureBullet(text = "Uncompromising block screen overlay on launch")
+                    ModeFeatureBullet(text = "Configured by 24-hour schedule or overnight windows")
+                    ModeFeatureBullet(text = "Zero screen time allowance or snooze periods")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(16.dp))
+
+        // Option 2: Usage Allowance Card
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .clip(RoundedCornerShape(3.dp))
+                .border(
+                    BorderStroke(if (isAllowance) 2.dp else 1.dp, if (isAllowance) palette.border else palette.hairline),
+                    RoundedCornerShape(3.dp)
+                )
+                .clickable { onSelectMode(ScheduleMode.USAGE_LIMIT) },
+            color = palette.surface
+        ) {
+            Column(modifier = Modifier.padding(18.dp)) {
+                Row(
+                    modifier = Modifier.fillMaxWidth(),
+                    horizontalArrangement = Arrangement.SpaceBetween,
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Text(
+                        text = "USAGE ALLOWANCE",
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold,
+                        color = palette.ink,
+                        letterSpacing = 0.5.sp
+                    )
+                    if (isAllowance) {
+                        StampLabel(text = "SELECTED", rotation = 0f)
+                    } else {
+                        Surface(
+                            shape = RoundedCornerShape(2.dp),
+                            color = palette.hairline.copy(alpha = 0.3f),
+                            border = BorderStroke(1.dp, palette.hairline)
+                        ) {
+                            Text(
+                                text = "ALLOWANCE",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = palette.inkSecondary,
+                                modifier = Modifier.padding(horizontal = 8.dp, vertical = 2.dp)
+                            )
+                        }
+                    }
+                }
+
+                Spacer(modifier = Modifier.height(8.dp))
+
+                Text(
+                    text = "Permit a disciplined quota of screen time. Once exhausted, applications are blocked for the remainder of the timeframe.",
+                    style = MaterialTheme.typography.bodyMedium,
+                    color = palette.ink
+                )
+
+                Spacer(modifier = Modifier.height(14.dp))
+                HorizontalDivider(color = palette.hairline, thickness = 1.dp)
+                Spacer(modifier = Modifier.height(12.dp))
+
+                Column(verticalArrangement = Arrangement.spacedBy(6.dp)) {
+                    ModeFeatureBullet(text = "Flexible timeframe: Daily, Hourly, or Custom window")
+                    ModeFeatureBullet(text = "Shared pool across all apps or per-app quotas")
+                    ModeFeatureBullet(text = "Live countdown tracks foreground usage")
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Direction Notice
+        Surface(
+            modifier = Modifier
+                .fillMaxWidth()
+                .border(1.dp, palette.hairline, RoundedCornerShape(2.dp)),
+            color = palette.hairline.copy(alpha = 0.15f)
+        ) {
+            Row(
+                modifier = Modifier.padding(12.dp),
+                verticalAlignment = Alignment.CenterVertically
+            ) {
+                Icon(
+                    imageVector = Icons.Default.Info,
+                    contentDescription = null,
+                    tint = palette.inkSecondary,
+                    modifier = Modifier.size(16.dp)
+                )
+                Spacer(modifier = Modifier.width(8.dp))
+                Text(
+                    text = if (isBlackout)
+                        "Next: You will configure the active days and 24-hour blackout time window."
+                    else
+                        "Next: You will configure the quota duration, reset timeframe cadence (daily, hourly, or custom window), and sharing scope.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.inkSecondary
+                )
+            }
+        }
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4 (BRANCH A): BLACKOUT SCHEDULE (DAYS + 24H TIMELINE & TIME PICKERS)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun WizardStep4BlackoutSchedule(
+    schedule: Schedule,
+    appCount: Int,
+    onScheduleChange: (Schedule) -> Unit
+) {
+    val palette = LocalPledgePalette.current
+    val currentStart = schedule.startTime ?: LocalTime.of(9, 0)
+    val currentEnd = schedule.endTime ?: LocalTime.of(17, 0)
+    val isOvernight = !currentEnd.isAfter(currentStart)
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
         Text(
-            text = "RESTRICTION MODE",
+            text = "STEP 4: BLACKOUT SCHEDULE",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.5.sp
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "ACTIVE DAYS & TIMELINE",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = palette.ink
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Designate when target applications are locked against access.",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.inkSecondary
+        )
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // Active Days
+        ActiveDaysSelector(
+            selectedDays = schedule.daysOfWeek,
+            onDaysChanged = { onScheduleChange(schedule.copy(daysOfWeek = it)) }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // 24-Hour Drag Timeline
+        Text(
+            text = "24-HOUR BLOCK TIMELINE (DRAG TO ADJUST)",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.2.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        DayTimeline24hEditor(
+            startTime = currentStart,
+            endTime = currentEnd,
+            onRangeChanged = { newStart, newEnd ->
+                onScheduleChange(schedule.copy(startTime = newStart, endTime = newEnd))
+            }
+        )
+
+        Spacer(modifier = Modifier.height(14.dp))
+
+        // Numeric Time Pickers as Fallback / Fine-tune
+        Text(
+            text = "NUMERIC TIME PICKERS (TAP TO FINE-TUNE)",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.0.sp
+        )
+        Spacer(modifier = Modifier.height(6.dp))
+
+        TimePickersRow(
+            startTime = currentStart,
+            endTime = currentEnd,
+            onStartTimeChanged = { onScheduleChange(schedule.copy(startTime = it)) },
+            onEndTimeChanged = { onScheduleChange(schedule.copy(endTime = it)) }
+        )
+
+        if (isOvernight) {
+            Spacer(modifier = Modifier.height(8.dp))
+            Surface(
+                modifier = Modifier
+                    .fillMaxWidth()
+                    .border(1.dp, palette.hairline, RoundedCornerShape(2.dp)),
+                color = palette.hairline.copy(alpha = 0.15f)
+            ) {
+                Row(
+                    modifier = Modifier.padding(10.dp),
+                    verticalAlignment = Alignment.CenterVertically
+                ) {
+                    Icon(
+                        imageVector = Icons.Default.Info,
+                        contentDescription = null,
+                        tint = palette.accent,
+                        modifier = Modifier.size(16.dp)
+                    )
+                    Spacer(modifier = Modifier.width(8.dp))
+                    Text(
+                        text = "Overnight schedule: locks start at ${currentStart.format(timeFormatter)} and release the following morning at ${currentEnd.format(timeFormatter)}.",
+                        style = MaterialTheme.typography.bodySmall,
+                        color = palette.ink
+                    )
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // Plain English Contract Enforcement Summary
+        ContractSummaryCard(schedule = schedule, appCount = appCount)
+    }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// STEP 4 (BRANCH B): USAGE ALLOWANCE (QUOTA + TIMEFRAME CADENCE + DAYS + SCOPE)
+// ─────────────────────────────────────────────────────────────────────────────
+
+@Composable
+private fun WizardStep4UsageAllowance(
+    schedule: Schedule,
+    appCount: Int,
+    onScheduleChange: (Schedule) -> Unit
+) {
+    val palette = LocalPledgePalette.current
+    val allowancePresets = remember { listOf(15, 30, 45, 60, 90) }
+    val currentStart = schedule.startTime ?: LocalTime.of(9, 0)
+    val currentEnd = schedule.endTime ?: LocalTime.of(17, 0)
+    val isOvernight = !currentEnd.isAfter(currentStart)
+    val timeFormatter = remember { DateTimeFormatter.ofPattern("HH:mm") }
+
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(rememberScrollState())
+            .padding(horizontal = 16.dp, vertical = 12.dp)
+    ) {
+        Text(
+            text = "STEP 4: USAGE ALLOWANCE",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.5.sp
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "ALLOWANCE & TIMEFRAME",
+            style = MaterialTheme.typography.headlineMedium,
+            fontWeight = FontWeight.Bold,
+            color = palette.ink
+        )
+
+        Spacer(modifier = Modifier.height(6.dp))
+
+        Text(
+            text = "Configure your screen time quota, reset timeframe, and sharing scope.",
+            style = MaterialTheme.typography.bodySmall,
+            color = palette.inkSecondary
+        )
+
+        Spacer(modifier = Modifier.height(18.dp))
+
+        // SECTION 1: ALLOWED QUOTA MINUTES
+        Text(
+            text = "ALLOWED QUOTA DURATION",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.2.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            allowancePresets.forEach { mins ->
+                val isSelected = schedule.usageLimitMinutes == mins
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .height(40.dp)
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(1.dp, if (isSelected) palette.border else palette.hairline, RoundedCornerShape(2.dp))
+                        .clickable { onScheduleChange(schedule.copy(usageLimitMinutes = mins)) },
+                    color = if (isSelected) palette.border else palette.surface
+                ) {
+                    Box(contentAlignment = Alignment.Center) {
+                        Text(
+                            text = "${mins}M",
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = if (isSelected) palette.surface else palette.ink
+                        )
+                    }
+                }
+            }
+        }
+
+        Spacer(modifier = Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = if (schedule.usageLimitMinutes > 0) schedule.usageLimitMinutes.toString() else "",
+            onValueChange = { input ->
+                val mins = input.filter { it.isDigit() }.toIntOrNull() ?: 0
+                onScheduleChange(schedule.copy(usageLimitMinutes = mins))
+            },
+            label = { Text("CUSTOM QUOTA (MINUTES)") },
+            placeholder = { Text("e.g. 25") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            singleLine = true,
+            shape = RoundedCornerShape(2.dp),
+            modifier = Modifier.fillMaxWidth(),
+            colors = OutlinedTextFieldDefaults.colors(
+                focusedBorderColor = palette.border,
+                unfocusedBorderColor = palette.hairline,
+                focusedTextColor = palette.ink,
+                unfocusedTextColor = palette.ink
+            )
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // SECTION 2: RESET TIMEFRAME CADENCE
+        Text(
+            text = "RESET TIMEFRAME CADENCE",
+            style = MaterialTheme.typography.labelSmall,
+            color = palette.inkSecondary,
+            letterSpacing = 1.2.sp
+        )
+        Spacer(modifier = Modifier.height(8.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.spacedBy(6.dp)
+        ) {
+            val cadenceOptions = listOf(
+                Triple(ScheduleType.DAILY, "DAILY", "Resets 00:00"),
+                Triple(ScheduleType.HOURLY, "HOURLY", "Resets :00"),
+                Triple(ScheduleType.RECURRING, "CUSTOM WINDOW", "Within window")
+            )
+
+            cadenceOptions.forEach { (type, label, desc) ->
+                val isSelected = schedule.type == type
+                Surface(
+                    modifier = Modifier
+                        .weight(1f)
+                        .clip(RoundedCornerShape(2.dp))
+                        .border(
+                            BorderStroke(if (isSelected) 2.dp else 1.dp, if (isSelected) palette.border else palette.hairline),
+                            RoundedCornerShape(2.dp)
+                        )
+                        .clickable {
+                            onScheduleChange(
+                                schedule.copy(
+                                    type = type,
+                                    startTime = if (type == ScheduleType.RECURRING) currentStart else schedule.startTime,
+                                    endTime = if (type == ScheduleType.RECURRING) currentEnd else schedule.endTime
+                                )
+                            )
+                        },
+                    color = if (isSelected) palette.hairline.copy(alpha = 0.3f) else palette.surface
+                ) {
+                    Column(
+                        modifier = Modifier.padding(vertical = 10.dp, horizontal = 4.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        Text(
+                            text = label,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontWeight = FontWeight.Bold,
+                            color = palette.ink
+                        )
+                        Spacer(modifier = Modifier.height(2.dp))
+                        Text(
+                            text = desc,
+                            style = MaterialTheme.typography.labelSmall,
+                            fontSize = 10.sp,
+                            color = palette.inkSecondary,
+                            textAlign = TextAlign.Center
+                        )
+                    }
+                }
+            }
+        }
+
+        // If CUSTOM WINDOW (ScheduleType.RECURRING) is chosen, show the 24h timeline and start/end pickers
+        if (schedule.type == ScheduleType.RECURRING) {
+            Spacer(modifier = Modifier.height(16.dp))
+
+            Text(
+                text = "ACTIVE ALLOWANCE TIMELINE (DRAG TO ADJUST)",
+                style = MaterialTheme.typography.labelSmall,
+                color = palette.inkSecondary,
+                letterSpacing = 1.2.sp
+            )
+            Spacer(modifier = Modifier.height(8.dp))
+
+            DayTimeline24hEditor(
+                startTime = currentStart,
+                endTime = currentEnd,
+                onRangeChanged = { newStart, newEnd ->
+                    onScheduleChange(schedule.copy(startTime = newStart, endTime = newEnd))
+                }
+            )
+
+            Spacer(modifier = Modifier.height(10.dp))
+
+            TimePickersRow(
+                startTime = currentStart,
+                endTime = currentEnd,
+                onStartTimeChanged = { onScheduleChange(schedule.copy(startTime = it)) },
+                onEndTimeChanged = { onScheduleChange(schedule.copy(endTime = it)) }
+            )
+
+            if (isOvernight) {
+                Spacer(modifier = Modifier.height(6.dp))
+                Text(
+                    text = "Overnight window: quota applies from ${currentStart.format(timeFormatter)} to ${currentEnd.format(timeFormatter)} next morning.",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.accent
+                )
+            }
+        }
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // SECTION 3: ACTIVE DAYS
+        ActiveDaysSelector(
+            selectedDays = schedule.daysOfWeek,
+            onDaysChanged = { onScheduleChange(schedule.copy(daysOfWeek = it)) }
+        )
+
+        Spacer(modifier = Modifier.height(20.dp))
+
+        // SECTION 4: QUOTA SHARING SCOPE
+        Text(
+            text = "QUOTA SHARING SCOPE",
             style = MaterialTheme.typography.labelSmall,
             color = palette.inkSecondary,
             letterSpacing = 1.2.sp
@@ -917,241 +1580,78 @@ private fun WizardStep3ScheduleTimeline(
             modifier = Modifier.fillMaxWidth(),
             horizontalArrangement = Arrangement.spacedBy(8.dp)
         ) {
-            // Mode 1: Full Blackout
+            // Option A: Combined Pool
+            val isCombined = schedule.limitScope == LimitScope.COMBINED
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(3.dp))
-                    .border(BorderStroke(if (isFullBlock) 2.dp else 1.dp, if (isFullBlock) palette.border else palette.hairline), RoundedCornerShape(3.dp))
-                    .clickable {
-                        onScheduleChange(
-                            schedule.copy(
-                                mode = ScheduleMode.BLOCK,
-                                type = ScheduleType.RECURRING,
-                                startTime = currentStart,
-                                endTime = currentEnd
-                            )
-                        )
-                    },
-                color = if (isFullBlock) palette.surface else palette.surface
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(
+                        BorderStroke(if (isCombined) 2.dp else 1.dp, if (isCombined) palette.border else palette.hairline),
+                        RoundedCornerShape(2.dp)
+                    )
+                    .clickable { onScheduleChange(schedule.copy(limitScope = LimitScope.COMBINED)) },
+                color = if (isCombined) palette.hairline.copy(alpha = 0.3f) else palette.surface
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "FULL BLACKOUT",
+                        text = "SHARED POOL",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = palette.ink
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Block apps completely during designated hours",
+                        text = "All selected apps draw from one combined ${schedule.usageLimitMinutes}m quota",
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.inkSecondary
                     )
                 }
             }
 
-            // Mode 2: Time Allowance
+            // Option B: Per App
+            val isPerApp = schedule.limitScope == LimitScope.PER_APP
             Surface(
                 modifier = Modifier
                     .weight(1f)
-                    .clip(RoundedCornerShape(3.dp))
-                    .border(BorderStroke(if (!isFullBlock) 2.dp else 1.dp, if (!isFullBlock) palette.border else palette.hairline), RoundedCornerShape(3.dp))
-                    .clickable {
-                        onScheduleChange(
-                            schedule.copy(
-                                mode = ScheduleMode.USAGE_LIMIT,
-                                type = ScheduleType.DAILY,
-                                usageLimitMinutes = if (schedule.usageLimitMinutes > 0) schedule.usageLimitMinutes else 30
-                            )
-                        )
-                    },
-                color = palette.surface
+                    .clip(RoundedCornerShape(2.dp))
+                    .border(
+                        BorderStroke(if (isPerApp) 2.dp else 1.dp, if (isPerApp) palette.border else palette.hairline),
+                        RoundedCornerShape(2.dp)
+                    )
+                    .clickable { onScheduleChange(schedule.copy(limitScope = LimitScope.PER_APP)) },
+                color = if (isPerApp) palette.hairline.copy(alpha = 0.3f) else palette.surface
             ) {
                 Column(modifier = Modifier.padding(12.dp)) {
                     Text(
-                        text = "USAGE ALLOWANCE",
+                        text = "PER-APP",
                         style = MaterialTheme.typography.titleSmall,
                         fontWeight = FontWeight.Bold,
                         color = palette.ink
                     )
                     Spacer(modifier = Modifier.height(4.dp))
                     Text(
-                        text = "Permit limited screen time quota before locking",
+                        text = "Each app gets its own separate ${schedule.usageLimitMinutes}m quota",
                         style = MaterialTheme.typography.bodySmall,
                         color = palette.inkSecondary
                     )
                 }
             }
-        }
-
-        Spacer(modifier = Modifier.height(20.dp))
-
-        if (isFullBlock) {
-            // PRIMARY 24-HOUR DRAG TIMELINE
-            DayTimeline24hEditor(
-                startTime = currentStart,
-                endTime = currentEnd,
-                onRangeChanged = { newStart, newEnd ->
-                    onScheduleChange(schedule.copy(startTime = newStart, endTime = newEnd))
-                }
-            )
-
-            Spacer(modifier = Modifier.height(14.dp))
-
-            // Numeric Time Pickers as Fallback
-            Text(
-                text = "NUMERIC TIME PICKERS (TAP TO FINE-TUNE)",
-                style = MaterialTheme.typography.labelSmall,
-                color = palette.inkSecondary,
-                letterSpacing = 1.0.sp
-            )
-            Spacer(modifier = Modifier.height(6.dp))
-
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(8.dp)
-            ) {
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(2.dp))
-                        .border(1.dp, palette.hairline, RoundedCornerShape(2.dp))
-                        .clickable { openTimePicker(currentStart) { onScheduleChange(schedule.copy(startTime = it)) } },
-                    color = palette.surface
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = palette.inkSecondary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "START: ${currentStart.format(timeFormatter)}",
-                            style = MaterialTheme.typography.titleSmall.tabular(),
-                            fontWeight = FontWeight.Bold,
-                            color = palette.ink
-                        )
-                    }
-                }
-
-                Surface(
-                    modifier = Modifier
-                        .weight(1f)
-                        .clip(RoundedCornerShape(2.dp))
-                        .border(1.dp, palette.hairline, RoundedCornerShape(2.dp))
-                        .clickable { openTimePicker(currentEnd) { onScheduleChange(schedule.copy(endTime = it)) } },
-                    color = palette.surface
-                ) {
-                    Row(
-                        modifier = Modifier.padding(10.dp),
-                        verticalAlignment = Alignment.CenterVertically
-                    ) {
-                        Icon(Icons.Default.AccessTime, contentDescription = null, tint = palette.inkSecondary, modifier = Modifier.size(16.dp))
-                        Spacer(modifier = Modifier.width(8.dp))
-                        Text(
-                            text = "END: ${currentEnd.format(timeFormatter)}",
-                            style = MaterialTheme.typography.titleSmall.tabular(),
-                            fontWeight = FontWeight.Bold,
-                            color = palette.ink
-                        )
-                    }
-                }
-            }
-        } else {
-            // USAGE ALLOWANCE SETTINGS
-            Text(
-                text = "DAILY QUOTA MINUTES",
-                style = MaterialTheme.typography.labelSmall,
-                color = palette.inkSecondary,
-                letterSpacing = 1.0.sp
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            val allowancePresets = listOf(15, 30, 45, 60, 90)
-            Row(
-                modifier = Modifier.fillMaxWidth(),
-                horizontalArrangement = Arrangement.spacedBy(6.dp)
-            ) {
-                allowancePresets.forEach { mins ->
-                    val isSelected = schedule.usageLimitMinutes == mins
-                    Surface(
-                        modifier = Modifier
-                            .weight(1f)
-                            .height(40.dp)
-                            .clip(RoundedCornerShape(2.dp))
-                            .border(1.dp, if (isSelected) palette.border else palette.hairline, RoundedCornerShape(2.dp))
-                            .clickable { onScheduleChange(schedule.copy(usageLimitMinutes = mins)) },
-                        color = if (isSelected) palette.border else palette.surface
-                    ) {
-                        Box(contentAlignment = Alignment.Center) {
-                            Text(
-                                text = "${mins}M",
-                                style = MaterialTheme.typography.labelSmall,
-                                fontWeight = FontWeight.Bold,
-                                color = if (isSelected) palette.surface else palette.ink
-                            )
-                        }
-                    }
-                }
-            }
-
-            Spacer(modifier = Modifier.height(10.dp))
-
-            OutlinedTextField(
-                value = if (schedule.usageLimitMinutes > 0) schedule.usageLimitMinutes.toString() else "",
-                onValueChange = { input ->
-                    val mins = input.filter { it.isDigit() }.toIntOrNull() ?: 0
-                    onScheduleChange(schedule.copy(usageLimitMinutes = mins))
-                },
-                label = { Text("CUSTOM QUOTA (MINUTES)") },
-                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
-                singleLine = true,
-                shape = RoundedCornerShape(2.dp),
-                modifier = Modifier.fillMaxWidth(),
-                colors = OutlinedTextFieldDefaults.colors(
-                    focusedBorderColor = palette.border,
-                    unfocusedBorderColor = palette.hairline,
-                    focusedTextColor = palette.ink,
-                    unfocusedTextColor = palette.ink
-                )
-            )
         }
 
         Spacer(modifier = Modifier.height(20.dp))
 
         // Contract Plain-English Summary
-        Surface(
-            modifier = Modifier
-                .fillMaxWidth()
-                .border(BorderStroke(1.dp, palette.hairline), RoundedCornerShape(2.dp)),
-            color = palette.surface
-        ) {
-            Column(modifier = Modifier.padding(14.dp)) {
-                Text(
-                    text = "CONTRACT ENFORCEMENT SUMMARY",
-                    style = MaterialTheme.typography.labelSmall,
-                    fontWeight = FontWeight.Bold,
-                    color = palette.inkSecondary,
-                    letterSpacing = 1.0.sp
-                )
-                Spacer(modifier = Modifier.height(6.dp))
-                Text(
-                    text = ProfilePresets.getExplanation(schedule, appCount),
-                    style = MaterialTheme.typography.bodySmall,
-                    color = palette.ink
-                )
-            }
-        }
+        ContractSummaryCard(schedule = schedule, appCount = appCount)
     }
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
-// STEP 4: REVIEW & PLEDGE
+// STEP 5: REVIEW & PLEDGE
 // ─────────────────────────────────────────────────────────────────────────────
 
 @Composable
-private fun WizardStep4PledgeReview(
+private fun WizardStep5PledgeReview(
     profileName: String,
     selectedApps: List<InstalledApp>,
     schedule: Schedule,
@@ -1167,10 +1667,10 @@ private fun WizardStep4PledgeReview(
             .padding(horizontal = 16.dp, vertical = 12.dp)
     ) {
         Text(
-            text = "CONTRACT SPECIFICATION",
+            text = "STEP 5: CONTRACT SPECIFICATION",
             style = MaterialTheme.typography.labelSmall,
             color = palette.inkSecondary,
-            letterSpacing = 1.2.sp
+            letterSpacing = 1.5.sp
         )
 
         Spacer(modifier = Modifier.height(10.dp))
@@ -1201,9 +1701,37 @@ private fun WizardStep4PledgeReview(
                 HorizontalDivider(color = palette.hairline, thickness = 1.dp)
                 Spacer(modifier = Modifier.height(12.dp))
 
+                // Detail item 0: Restriction Mode
+                Text(
+                    text = "DISCIPLINE & CADENCE",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.inkSecondary
+                )
+                Spacer(modifier = Modifier.height(4.dp))
+                val modeSummary = if (schedule.mode == ScheduleMode.BLOCK) {
+                    "FULL BLACKOUT (Complete cessation during active hours)"
+                } else {
+                    val cadenceStr = when (schedule.type) {
+                        ScheduleType.HOURLY -> "Hourly reset"
+                        ScheduleType.DAILY -> "Daily reset"
+                        ScheduleType.RECURRING -> "Custom active window"
+                        else -> "Daily reset"
+                    }
+                    val scopeStr = if (schedule.limitScope == LimitScope.COMBINED) "Shared pool" else "Per app"
+                    "USAGE ALLOWANCE: ${schedule.usageLimitMinutes} min ($cadenceStr · $scopeStr)"
+                }
+                Text(
+                    text = modeSummary,
+                    style = MaterialTheme.typography.bodyMedium,
+                    fontWeight = FontWeight.SemiBold,
+                    color = palette.ink
+                )
+
+                Spacer(modifier = Modifier.height(12.dp))
+
                 // Detail item 1: Apps
                 Text(
-                    text = "TARGET APPLICATIONS",
+                    text = "TARGET APPLICATIONS (${selectedApps.size})",
                     style = MaterialTheme.typography.labelSmall,
                     color = palette.inkSecondary
                 )

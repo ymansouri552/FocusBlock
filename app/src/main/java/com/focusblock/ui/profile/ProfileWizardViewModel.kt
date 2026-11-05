@@ -7,6 +7,8 @@ import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.ProfilePreset
 import com.focusblock.domain.model.ProfilePresets
 import com.focusblock.domain.model.Schedule
+import com.focusblock.domain.model.ScheduleMode
+import com.focusblock.domain.model.ScheduleType
 import com.focusblock.domain.usecase.GetInstalledAppsUseCase
 import com.focusblock.domain.usecase.SaveProfileUseCase
 import dagger.hilt.android.lifecycle.HiltViewModel
@@ -95,6 +97,30 @@ class ProfileWizardViewModel @Inject constructor(
         _uiState.update { it.copy(schedule = schedule, error = null) }
     }
 
+    fun setScheduleMode(mode: ScheduleMode) {
+        _uiState.update { current ->
+            val updatedSchedule = if (mode == ScheduleMode.BLOCK) {
+                current.schedule.copy(
+                    mode = ScheduleMode.BLOCK,
+                    type = ScheduleType.RECURRING,
+                    startTime = current.schedule.startTime ?: java.time.LocalTime.of(9, 0),
+                    endTime = current.schedule.endTime ?: java.time.LocalTime.of(17, 0)
+                )
+            } else {
+                current.schedule.copy(
+                    mode = ScheduleMode.USAGE_LIMIT,
+                    type = if (current.schedule.type == ScheduleType.HOURLY || current.schedule.type == ScheduleType.DAILY || current.schedule.type == ScheduleType.RECURRING) {
+                        current.schedule.type
+                    } else {
+                        ScheduleType.DAILY
+                    },
+                    usageLimitMinutes = if (current.schedule.usageLimitMinutes > 0) current.schedule.usageLimitMinutes else 30
+                )
+            }
+            current.copy(schedule = updatedSchedule, error = null)
+        }
+    }
+
     fun toggleStrict(strict: Boolean) {
         _uiState.update { it.copy(strict = strict) }
     }
@@ -115,13 +141,27 @@ class ProfileWizardViewModel @Inject constructor(
                 }
             }
             3 -> {
-                if (state.schedule.daysOfWeek.isEmpty()) {
-                    _uiState.update { it.copy(error = "Please select at least one active day") }
-                    return false
+                // Mode selection is always valid (defaults to preset mode)
+            }
+            4 -> {
+                if (state.schedule.mode == ScheduleMode.BLOCK) {
+                    if (state.schedule.daysOfWeek.isEmpty()) {
+                        _uiState.update { it.copy(error = "Please select at least one active day") }
+                        return false
+                    }
+                } else {
+                    if (state.schedule.usageLimitMinutes <= 0) {
+                        _uiState.update { it.copy(error = "Please specify an allowance of at least 1 minute") }
+                        return false
+                    }
+                    if (state.schedule.daysOfWeek.isEmpty()) {
+                        _uiState.update { it.copy(error = "Please select at least one active day") }
+                        return false
+                    }
                 }
             }
         }
-        if (state.step < 4) {
+        if (state.step < 5) {
             _uiState.update { it.copy(step = it.step + 1, error = null) }
             return true
         }
@@ -137,7 +177,7 @@ class ProfileWizardViewModel @Inject constructor(
     }
 
     fun goToStep(step: Int) {
-        if (step in 1..4) {
+        if (step in 1..5) {
             _uiState.update { it.copy(step = step, error = null) }
         }
     }
