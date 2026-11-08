@@ -8,6 +8,9 @@ import com.focusblock.domain.model.Schedule
 import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.ScheduleType
 import com.focusblock.domain.repository.AppUsageRepository
+import com.focusblock.domain.repository.UsageStatsRepository
+import com.focusblock.domain.model.AppUsageItem
+import com.focusblock.domain.model.UsageStatsOverview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
@@ -254,5 +257,131 @@ class AppUsageTrackerTest {
 
         val status = tracker.evaluateUsageLimit("com.app.unmonitored", listOf(activeInfo), now)
         assertNull(status)
+    }
+
+    @Test
+    fun actual_system_usage_exceeding_limit_blocks_app_even_if_app_usage_repo_is_empty() = runBlocking {
+        val now = Instant.now()
+        val windowStart = now.minus(2, ChronoUnit.HOURS)
+        val windowEnd = now.plus(2, ChronoUnit.HOURS)
+
+        // Local repository has 0 records, but system UsageStats reports 45 minutes used
+        val emptyLocalRepo = FakeAppUsageRepository()
+        val fakeUsageStatsRepo = FakeSystemUsageStatsRepository().apply {
+            setDuration("com.supercell.clashofclans", 45 * 60 * 1000L)
+        }
+        val systemAwareTracker = AppUsageTracker(emptyLocalRepo, fakeUsageStatsRepo)
+
+        val schedule = Schedule(
+            type = ScheduleType.DAILY,
+            mode = ScheduleMode.USAGE_LIMIT,
+            usageLimitMinutes = 30,
+            limitScope = LimitScope.PER_APP
+        )
+        val profile = Profile(
+            id = 2,
+            name = "Gaming",
+            blockedApps = setOf("com.supercell.clashofclans"),
+            enabled = true,
+            schedules = listOf(schedule)
+        )
+        val activeInfo = ActiveProfileInfo(
+            profile = profile,
+            schedule = schedule,
+            startInstant = windowStart,
+            endInstant = windowEnd
+        )
+
+        val status = systemAwareTracker.evaluateUsageLimit("com.supercell.clashofclans", listOf(activeInfo), now)
+        assertNotNull(status)
+        assertTrue(status.isExceeded)
+        assertEquals(30 * 60 * 1000L, status.limitMs)
+        assertEquals(45 * 60 * 1000L, status.usedMs)
+        assertEquals(0L, status.remainingQuotaMs)
+    }
+
+    @Test
+    fun combined_scope_uses_actual_system_combined_usage() = runBlocking {
+        val now = Instant.now()
+        val windowStart = now.minus(2, ChronoUnit.HOURS)
+        val windowEnd = now.plus(2, ChronoUnit.HOURS)
+
+        val emptyLocalRepo = FakeAppUsageRepository()
+        val fakeUsageStatsRepo = FakeSystemUsageStatsRepository().apply {
+            setDuration("com.instagram.android", 15 * 60 * 1000L)
+            setDuration("com.zhiliaoapp.musically", 20 * 60 * 1000L)
+        }
+        val systemAwareTracker = AppUsageTracker(emptyLocalRepo, fakeUsageStatsRepo)
+
+        val schedule = Schedule(
+            type = ScheduleType.DAILY,
+            mode = ScheduleMode.USAGE_LIMIT,
+            usageLimitMinutes = 30, // 30 min limit, 35 min combined usage
+            limitScope = LimitScope.COMBINED
+        )
+        val profile = Profile(
+            id = 3,
+            name = "Social",
+            blockedApps = setOf("com.instagram.android", "com.zhiliaoapp.musically"),
+            enabled = true,
+            schedules = listOf(schedule)
+        )
+        val activeInfo = ActiveProfileInfo(
+            profile = profile,
+            schedule = schedule,
+            startInstant = windowStart,
+            endInstant = windowEnd
+        )
+
+        val instagramStatus = systemAwareTracker.evaluateUsageLimit("com.instagram.android", listOf(activeInfo), now)
+        assertNotNull(instagramStatus)
+        assertTrue(instagramStatus.isExceeded)
+        assertEquals(35 * 60 * 1000L, instagramStatus.usedMs)
+
+        val tiktokStatus = systemAwareTracker.evaluateUsageLimit("com.zhiliaoapp.musically", listOf(activeInfo), now)
+        assertNotNull(tiktokStatus)
+        assertTrue(tiktokStatus.isExceeded)
+        assertEquals(35 * 60 * 1000L, tiktokStatus.usedMs)
+    }
+}
+
+class FakeSystemUsageStatsRepository : UsageStatsRepository {
+    private val durations = mutableMapOf<String, Long>()
+    var permission: Boolean = true
+
+    fun setDuration(pkg: String, ms: Long) {
+        durations[pkg] = ms
+    }
+
+    override fun hasUsagePermission(): Boolean = permission
+
+    override suspend fun getDailyStats(date: java.time.LocalDate): UsageStatsOverview {
+        return UsageStatsOverview(
+            period = com.focusblock.domain.model.StatsPeriod.DAILY,
+            selectedDate = date,
+            totalScreenTimeMs = durations.values.sum(),
+            dailyAverageMs = durations.values.sum(),
+            hasPermission = permission
+        )
+    }
+
+    override suspend fun getWeeklyStats(dateInWeek: java.time.LocalDate): UsageStatsOverview {
+        return UsageStatsOverview(
+            period = com.focusblock.domain.model.StatsPeriod.WEEKLY,
+            selectedDate = dateInWeek,
+            totalScreenTimeMs = durations.values.sum(),
+            dailyAverageMs = durations.values.sum(),
+            hasPermission = permission
+        )
+    }
+
+    override suspend fun getAppUsageForPeriod(packageName: String, startMs: Long, endMs: Long): AppUsageItem? = null
+
+    override suspend fun getUsageDuration(packageName: String, startMs: Long, endMs: Long): Long {
+        return durations[packageName] ?: 0L
+    }
+
+    override suspend fun getCombinedUsageDuration(packages: Set<String>, startMs: Long, endMs: Long): Long {
+        return packages.sumOf { durations[it] ?: 0L }
     }
 }

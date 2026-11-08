@@ -7,6 +7,7 @@ import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.Schedule
 import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.repository.AppUsageRepository
+import com.focusblock.domain.repository.UsageStatsRepository
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
@@ -28,7 +29,8 @@ data class UsageLimitStatus(
 
 @Singleton
 class AppUsageTracker @Inject constructor(
-    private val repository: AppUsageRepository
+    private val repository: AppUsageRepository,
+    private val usageStatsRepository: UsageStatsRepository? = null
 ) {
     @Volatile
     private var activePackage: String? = null
@@ -41,6 +43,12 @@ class AppUsageTracker @Inject constructor(
 
     @Volatile
     private var sessionStartElapsedMs: Long = 0L
+
+    @Volatile
+    private var sessionBaselineUsageMs: Long = -1L
+
+    @Volatile
+    private var sessionBaselinePkg: String? = null
 
     val currentPackage: String?
         get() = activePackage
@@ -63,6 +71,8 @@ class AppUsageTracker @Inject constructor(
             activeProfileId = profileId
             sessionStartWallMs = nowWall
             sessionStartElapsedMs = nowElapsed
+            sessionBaselineUsageMs = -1L
+            sessionBaselinePkg = pkg
         }
     }
 
@@ -77,6 +87,8 @@ class AppUsageTracker @Inject constructor(
         activeProfileId = 0
         sessionStartWallMs = 0L
         sessionStartElapsedMs = 0L
+        sessionBaselineUsageMs = -1L
+        sessionBaselinePkg = null
     }
 
     /**
@@ -102,6 +114,8 @@ class AppUsageTracker @Inject constructor(
 
     /**
      * Computes the live active usage for a package within [windowStart, windowEnd].
+     * Connects to actual device app usage via [usageStatsRepository] (ground truth from
+     * system UsageStatsManager / UsageEvents) with seamless fallback to [repository].
      */
     suspend fun getUsage(
         pkg: String,
@@ -113,34 +127,48 @@ class AppUsageTracker @Inject constructor(
         val windowStartMs = windowStart.toEpochMilli()
         val windowEndMs = windowEnd.toEpochMilli()
 
-        // 1. Stored DB usage
-        val dbUsage = if (schedule.limitScope == LimitScope.COMBINED) {
-            repository.getUsageForProfile(profile.id, windowStartMs, windowEndMs)
-        } else {
-            repository.getUsageForPackage(pkg, windowStartMs, windowEndMs)
-        }
-
-        // 2. Add currently active uncommitted session in memory if applicable
-        var activeAdditionMs = 0L
         val currentPkg = activePackage
-        if (currentPkg != null && sessionStartWallMs > 0) {
-            val applies = if (schedule.limitScope == LimitScope.COMBINED) {
-                profile.blockedApps.contains(currentPkg)
+        val hasActiveSession = currentPkg != null && sessionStartWallMs > 0 &&
+                if (schedule.limitScope == LimitScope.COMBINED) profile.blockedApps.contains(currentPkg) else currentPkg == pkg
+
+        val baselineMs: Long
+        if (hasActiveSession && sessionBaselineUsageMs >= 0L && sessionBaselinePkg == pkg) {
+            baselineMs = sessionBaselineUsageMs
+        } else {
+            val systemUsageMs = if (usageStatsRepository != null && usageStatsRepository.hasUsagePermission()) {
+                if (schedule.limitScope == LimitScope.COMBINED) {
+                    usageStatsRepository.getCombinedUsageDuration(profile.blockedApps, windowStartMs, windowEndMs)
+                } else {
+                    usageStatsRepository.getUsageDuration(pkg, windowStartMs, windowEndMs)
+                }
+            } else 0L
+
+            val dbUsageMs = if (schedule.limitScope == LimitScope.COMBINED) {
+                repository.getUsageForProfile(profile.id, windowStartMs, windowEndMs)
             } else {
-                currentPkg == pkg
+                repository.getUsageForPackage(pkg, windowStartMs, windowEndMs)
             }
 
-            if (applies) {
-                val nowWall = System.currentTimeMillis()
-                val sessionStart = sessionStartWallMs.coerceAtLeast(windowStartMs)
-                val sessionEnd = nowWall.coerceAtMost(windowEndMs)
-                if (sessionEnd > sessionStart) {
-                    activeAdditionMs = sessionEnd - sessionStart
-                }
+            baselineMs = maxOf(systemUsageMs, dbUsageMs)
+
+            if (hasActiveSession) {
+                sessionBaselineUsageMs = baselineMs
+                sessionBaselinePkg = pkg
             }
         }
 
-        return dbUsage + activeAdditionMs
+        // Add currently active uncommitted session in memory if applicable
+        var activeAdditionMs = 0L
+        if (hasActiveSession) {
+            val nowWall = System.currentTimeMillis()
+            val sessionStart = sessionStartWallMs.coerceAtLeast(windowStartMs)
+            val sessionEnd = nowWall.coerceAtMost(windowEndMs)
+            if (sessionEnd > sessionStart) {
+                activeAdditionMs = sessionEnd - sessionStart
+            }
+        }
+
+        return baselineMs + activeAdditionMs
     }
 
     /**

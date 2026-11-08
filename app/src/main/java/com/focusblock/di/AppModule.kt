@@ -74,6 +74,15 @@ object AppModule {
 
     @Provides
     @Singleton
+    fun provideAppUsageTracker(
+        repository: AppUsageRepository,
+        usageStatsRepository: UsageStatsRepository
+    ): com.focusblock.domain.usecase.AppUsageTracker {
+        return com.focusblock.domain.usecase.AppUsageTracker(repository, usageStatsRepository)
+    }
+
+    @Provides
+    @Singleton
     fun provideStrictEnforcer(enforcer: DeviceAdminAccessibilityEnforcer): StrictEnforcer {
         return enforcer
     }
