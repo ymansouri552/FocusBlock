@@ -1,11 +1,14 @@
 package com.focusblock.domain.usecase
 
+import android.app.AppOpsManager
 import android.app.admin.DevicePolicyManager
 import android.content.ComponentName
 import android.content.Context
 import android.content.Intent
 import android.net.Uri
+import android.os.Build
 import android.os.PowerManager
+import android.os.Process
 import android.provider.Settings
 import com.focusblock.service.accessibility.FocusBlockAccessibilityService
 import com.focusblock.service.admin.FocusBlockDeviceAdminReceiver
@@ -110,6 +113,62 @@ class SystemPermissionChecker @Inject constructor(
                 return true
             } catch (e: Exception) {
                 // Try next fallback intent
+            }
+        }
+        return false
+    }
+
+    fun isUsageStatsGranted(): Boolean {
+        return runCatching {
+            val appOps = context.getSystemService(Context.APP_OPS_SERVICE) as? AppOpsManager ?: return false
+            val mode = if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.Q) {
+                appOps.unsafeCheckOpNoThrow(
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    Process.myUid(),
+                    context.packageName
+                )
+            } else {
+                @Suppress("DEPRECATION")
+                appOps.checkOpNoThrow(
+                    AppOpsManager.OPSTR_GET_USAGE_STATS,
+                    Process.myUid(),
+                    context.packageName
+                )
+            }
+            mode == AppOpsManager.MODE_ALLOWED
+        }.getOrDefault(false)
+    }
+
+    fun getUsageAccessSettingsIntent(): Intent {
+        val packageUriIntent = Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+            data = Uri.parse("package:${context.packageName}")
+            flags = Intent.FLAG_ACTIVITY_NEW_TASK
+        }
+        return if (packageUriIntent.resolveActivity(context.packageManager) != null) {
+            packageUriIntent
+        } else {
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        }
+    }
+
+    fun launchUsageAccessSettings(targetContext: Context = context): Boolean {
+        val intents = listOf(
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                data = Uri.parse("package:${targetContext.packageName}")
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            },
+            Intent(Settings.ACTION_USAGE_ACCESS_SETTINGS).apply {
+                flags = Intent.FLAG_ACTIVITY_NEW_TASK
+            }
+        )
+        for (intent in intents) {
+            try {
+                targetContext.startActivity(intent)
+                return true
+            } catch (e: Exception) {
+                // Try fallback intent
             }
         }
         return false

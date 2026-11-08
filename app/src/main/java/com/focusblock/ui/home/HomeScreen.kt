@@ -109,6 +109,8 @@ fun HomeScreen(
     onAddProfile: () -> Unit,
     onEditProfile: (Int) -> Unit,
     onOpenSettings: () -> Unit,
+    onOpenStats: () -> Unit = {},
+    bottomBar: @Composable () -> Unit = {},
     viewModel: HomeViewModel = hiltViewModel()
 ) {
     val palette = LocalPledgePalette.current
@@ -205,6 +207,7 @@ fun HomeScreen(
                 )
             )
         },
+        bottomBar = bottomBar,
         snackbarHost = { SnackbarHost(snackbarHostState) },
         containerColor = palette.background
     ) { innerPadding ->
@@ -251,7 +254,8 @@ fun HomeScreen(
             // STATS STRIP: Focused hours, streak, blocked attempts
             item {
                 StatsStrip(
-                    focusStats = focusStats
+                    focusStats = focusStats,
+                    onOpenStats = onOpenStats
                 )
             }
 
@@ -429,12 +433,30 @@ private fun HomeStatusHero(
 @Composable
 private fun StatsStrip(
     focusStats: FocusStats,
+    onOpenStats: () -> Unit = {},
     modifier: Modifier = Modifier
 ) {
     Column(modifier = modifier.fillMaxWidth()) {
-        SectionHeader(
-            title = "LEDGER METRICS"
-        )
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.SpaceBetween,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            SectionHeader(
+                title = "LEDGER METRICS"
+            )
+            Text(
+                text = "VIEW USAGE >",
+                style = MaterialTheme.typography.labelSmall,
+                color = LocalPledgePalette.current.accent,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.0.sp,
+                modifier = Modifier
+                    .clip(RoundedCornerShape(4.dp))
+                    .clickable { onOpenStats() }
+                    .padding(horizontal = 6.dp, vertical = 2.dp)
+            )
+        }
         Spacer(modifier = Modifier.height(8.dp))
 
         Row(

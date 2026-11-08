@@ -123,7 +123,7 @@ fun AppNavigation() {
         }
 
         composable(Screen.HOME.route) {
-            HomeScreen(
+            MainTabScreen(
                 onAddProfile = { navController.navigate(Screen.PROFILE_WIZARD.route) },
                 onEditProfile = { profileId ->
                     navController.navigate(Screen.PROFILE_EDITOR.createRoute(profileId))

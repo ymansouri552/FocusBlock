@@ -231,4 +231,44 @@
     <string name="play_disclosure_body">FocusBlock requests Accessibility Service and Device Administrator permissions. Accessibility is used only to detect when a blocked app is brought to the foreground so the block screen can be shown. No screen content is collected, stored, or transmitted. Device Administrator is used only to prevent uninstallation of FocusBlock while a Strict Mode block is active. You can revoke either permission at any time in Settings.</string>
     <string name="play_disclosure_accessibility">I consent to the Accessibility Service being used to detect blocked apps and enforce blocks locally on this device.</string>
     <string name="play_disclosure_device_admin">I consent to Device Administrator being used to prevent uninstallation while Strict Mode is active.</string>
+
+    <!-- Navigation Tabs -->
+    <string name="tab_focus">Focus</string>
+    <string name="tab_statistics">Statistics</string>
+
+    <!-- Statistics and Digital Wellbeing -->
+    <string name="stats_app_usage_title">App Usage</string>
+    <string name="stats_subtitle">Digital Wellbeing</string>
+    <string name="stats_daily">Daily</string>
+    <string name="stats_weekly">Weekly</string>
+    <string name="stats_today">Today</string>
+    <string name="stats_yesterday">Yesterday</string>
+    <string name="stats_this_week">This Week</string>
+    <string name="stats_last_week">Last Week</string>
+    <string name="stats_total_screen_time">Total Screen Time</string>
+    <string name="stats_daily_average">Daily Average</string>
+    <string name="stats_apps_used">Apps Used</string>
+    <string name="stats_app_opens">App Opens</string>
+    <string name="stats_most_used">Most Used</string>
+    <string name="stats_most_active_day">Peak Day</string>
+    <string name="stats_chart_title_daily">Hourly Screen Time</string>
+    <string name="stats_chart_title_weekly">7-Day Screen Time</string>
+    <string name="stats_applications">Applications</string>
+    <string name="stats_search_hint">Search used apps…</string>
+    <string name="stats_sort_time">Screen Time</string>
+    <string name="stats_sort_opens">Opens</string>
+    <string name="stats_sort_name">A-Z</string>
+    <string name="stats_no_usage">No app usage recorded for this timeframe.</string>
+    <string name="stats_no_matches">No matching applications found.</string>
+    <string name="stats_perm_required_title">Usage Access Required</string>
+    <string name="stats_perm_required_desc">FocusBlock needs Usage Access permission to calculate your daily and weekly app screen time, exactly like Android Digital Wellbeing. All data stays strictly local on your phone.</string>
+    <string name="stats_perm_grant_button">Grant Usage Access</string>
+    <string name="stats_perm_refresh">Refresh Data</string>
+    <string name="stats_privacy_badge">100% Private and Local</string>
+    <string name="stats_app_details_title">App Wellbeing Details</string>
+    <string name="stats_app_last_used">Last opened: %1$s</string>
+    <string name="stats_app_open_count">%1$d launches</string>
+    <string name="stats_app_block_action">Block in FocusBlock</string>
+    <string name="stats_app_status_blocked">Blocked</string>
+    <string name="stats_app_status_limited">Quota Limited</string>
 </resources>

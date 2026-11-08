@@ -70,4 +70,24 @@ class SystemPermissionCheckerTest {
         val result = permissionChecker.launchBatteryOptimizationSettings()
         assertTrue(result)
     }
+
+    @Test
+    fun isUsageStatsGranted_executesWithoutCrash() {
+        val result = permissionChecker.isUsageStatsGranted()
+        // In Robolectric test context without granted appops, defaults to false
+        assertFalse(result)
+    }
+
+    @Test
+    fun getUsageAccessSettingsIntent_returnsValidIntent() {
+        val intent = permissionChecker.getUsageAccessSettingsIntent()
+        assertNotNull(intent)
+        assertEquals(Settings.ACTION_USAGE_ACCESS_SETTINGS, intent.action)
+    }
+
+    @Test
+    fun launchUsageAccessSettings_doesNotCrash() {
+        val result = permissionChecker.launchUsageAccessSettings()
+        assertTrue(result)
+    }
 }
