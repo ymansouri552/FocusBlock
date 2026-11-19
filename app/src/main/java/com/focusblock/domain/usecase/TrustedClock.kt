@@ -10,7 +10,6 @@ import kotlinx.coroutines.sync.withLock
 import java.time.Instant
 import javax.inject.Inject
 import javax.inject.Singleton
-import kotlin.math.abs
 
 /**
  * A wall clock that is anchored to [SystemClock.elapsedRealtime], which cannot be changed by
@@ -66,16 +65,10 @@ class TrustedClock @Inject constructor(
             return@withLock wallNow
         }
 
-        val estimatedMs = anchor.wallEpochMs + (elapsedNow - anchor.elapsedRealtimeMs)
-        val driftMs = wallNow.toEpochMilli() - estimatedMs
-        if (abs(driftMs) <= toleranceMs) {
-            // Clock agrees with real elapsed time; keep the in-memory anchor fresh.
-            cachedAnchor = ClockAnchor(wallNow.toEpochMilli(), elapsedNow, bootCount)
-            wallNow
-        } else {
-            // Wall clock was moved by the user; continue with true elapsed time.
-            Instant.ofEpochMilli(estimatedMs)
-        }
+        // Always derive time from the elapsedRealtime anchor. Accepting and re-anchoring small
+        // drift here would let repeated sub-tolerance clock steps move trusted time arbitrarily.
+        // Legitimate corrections are adopted explicitly by HandleTimeChangeUseCase.reanchor().
+        Instant.ofEpochMilli(anchor.wallEpochMs + (elapsedNow - anchor.elapsedRealtimeMs))
     }
 
     /** Accepts the current system clock as the new trusted baseline (used outside strict sessions). */

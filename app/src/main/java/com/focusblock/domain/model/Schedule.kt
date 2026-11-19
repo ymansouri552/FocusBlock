@@ -164,7 +164,7 @@ object ScheduleEngine {
      * Packages that are blocked immediately by static (non-usage-limit) schedules.
      */
     fun staticBlockedPackages(profiles: List<Profile>, now: Instant = Instant.now()): Set<String> {
-        return activeProfiles(profiles, now)
+        return allActiveProfileInfos(profiles, now)
             .filter { it.schedule.mode == ScheduleMode.BLOCK }
             .flatMap { it.profile.blockedApps }
             .toSet()

@@ -50,6 +50,15 @@ class AppUsageTracker @Inject constructor(
     @Volatile
     private var sessionBaselinePkg: String? = null
 
+    @Volatile
+    private var sessionBaselineProfileId: Int = 0
+
+    @Volatile
+    private var sessionBaselineWindowStartMs: Long = -1L
+
+    @Volatile
+    private var sessionBaselineWindowEndMs: Long = -1L
+
     val currentPackage: String?
         get() = activePackage
 
@@ -61,12 +70,9 @@ class AppUsageTracker @Inject constructor(
         val nowWall = System.currentTimeMillis()
         val nowElapsed = SystemClock.elapsedRealtime()
 
-        val prevPkg = activePackage
-        if (prevPkg != null && prevPkg != pkg) {
-            commitActiveSession(nowWall, nowElapsed)
-        }
-
-        if (activePackage == null || activePackage != pkg) {
+        val profileChanged = profileId != 0 && profileId != activeProfileId
+        if (activePackage == null || activePackage != pkg || profileChanged) {
+            if (activePackage != null) commitActiveSession(nowWall, nowElapsed)
             activePackage = pkg
             activeProfileId = profileId
             sessionStartWallMs = nowWall
@@ -89,6 +95,13 @@ class AppUsageTracker @Inject constructor(
         sessionStartElapsedMs = 0L
         sessionBaselineUsageMs = -1L
         sessionBaselinePkg = null
+        clearBaselineKey()
+    }
+
+    private fun clearBaselineKey() {
+        sessionBaselineProfileId = 0
+        sessionBaselineWindowStartMs = -1L
+        sessionBaselineWindowEndMs = -1L
     }
 
     /**
@@ -99,9 +112,13 @@ class AppUsageTracker @Inject constructor(
         val nowWall = System.currentTimeMillis()
         val nowElapsed = SystemClock.elapsedRealtime()
         if (sessionStartWallMs > 0 && nowWall > sessionStartWallMs) {
+            val flushedMs = nowWall - sessionStartWallMs
             repository.recordUsage(activeProfileId, pkg, sessionStartWallMs, nowWall)
             sessionStartWallMs = nowWall
             sessionStartElapsedMs = nowElapsed
+            // The flushed interval is now in the database, so carry it into the cached
+            // baseline. Without this, every flush drops time from the reported total.
+            if (sessionBaselineUsageMs >= 0L) sessionBaselineUsageMs += flushedMs
         }
     }
 
@@ -131,8 +148,15 @@ class AppUsageTracker @Inject constructor(
         val hasActiveSession = currentPkg != null && sessionStartWallMs > 0 &&
                 if (schedule.limitScope == LimitScope.COMBINED) profile.blockedApps.contains(currentPkg) else currentPkg == pkg
 
+        val baselineMatches = hasActiveSession &&
+            sessionBaselineUsageMs >= 0L &&
+            sessionBaselinePkg == pkg &&
+            sessionBaselineProfileId == profile.id &&
+            sessionBaselineWindowStartMs == windowStartMs &&
+            sessionBaselineWindowEndMs == windowEndMs
+
         val baselineMs: Long
-        if (hasActiveSession && sessionBaselineUsageMs >= 0L && sessionBaselinePkg == pkg) {
+        if (baselineMatches) {
             baselineMs = sessionBaselineUsageMs
         } else {
             val systemUsageMs = if (usageStatsRepository != null && usageStatsRepository.hasUsagePermission()) {
@@ -154,6 +178,9 @@ class AppUsageTracker @Inject constructor(
             if (hasActiveSession) {
                 sessionBaselineUsageMs = baselineMs
                 sessionBaselinePkg = pkg
+                sessionBaselineProfileId = profile.id
+                sessionBaselineWindowStartMs = windowStartMs
+                sessionBaselineWindowEndMs = windowEndMs
             }
         }
 

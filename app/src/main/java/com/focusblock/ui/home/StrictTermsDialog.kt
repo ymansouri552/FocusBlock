@@ -81,6 +81,7 @@ import java.time.temporal.ChronoUnit
  */
 @Composable
 fun StrictTermsDialog(
+    now: Instant,
     onDismiss: () -> Unit,
     onArm: (termType: StrictTermType, customEndInstant: Instant?) -> Unit
 ) {
@@ -101,7 +102,6 @@ fun StrictTermsDialog(
     val stampScale = remember { Animatable(1.6f) }
 
     val zone = remember { ZoneId.systemDefault() }
-    val now = remember { Instant.now() }
 
     val commitmentExpiryString = remember(selectedTerm, customDate, customTime) {
         val targetInstant = when (selectedTerm) {

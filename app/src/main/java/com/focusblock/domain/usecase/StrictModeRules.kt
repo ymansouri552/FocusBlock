@@ -45,8 +45,8 @@ object StrictModeRules {
             }
         }
 
-        // 2. Fallback to per-profile schedule strictness
-        return profile.strict && ScheduleEngine.isActive(profile, now)
+        // 2. Fallback to per-profile schedule strictness (any matching schedule counts)
+        return profile.strict && ScheduleEngine.allActiveProfileInfos(listOf(profile), now).isNotEmpty()
     }
 
     fun canDeactivate(

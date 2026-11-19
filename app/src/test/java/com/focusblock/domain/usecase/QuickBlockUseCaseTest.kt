@@ -81,7 +81,7 @@ class QuickBlockUseCaseTest {
         assertEquals(2, profiles.size)
 
         // Start new quick block
-        useCase.startQuickBlock("New Quick Block", setOf("com.distraction.new"), 45)
+        useCase.startQuickBlock("New Quick Block", setOf("com.distraction.new"), 45, Instant.now())
 
         // Old quick block should be pruned; regular profile and new quick block remain
         assertEquals(2, profiles.size)

@@ -161,11 +161,30 @@ class ScheduleEngineTest {
     }
 
     @Test
-    fun dst_spring_forward_uses_zone_conversion() {
-        val now = instant(2026, 3, 8, 2, 30)
+    fun dst_day_uses_zone_conversion_for_window_end() {
+        val now = instant(2026, 3, 8, 12, 0)
         val p = profile("Any", setOf("com.app.a"), schedules = listOf(recurring(setOf(1), LocalTime.of(0, 0), LocalTime.of(23, 59))))
-        val result = isActive(p, now)
-        assertTrue(result == true || result == false)
+        val info = activeProfiles(listOf(p), now).singleOrNull()
+        assertNotNull(info)
+        assertEquals(LocalTime.of(23, 59), info.endInstant.atZone(zone).toLocalTime())
+    }
+
+    @Test
+    fun static_block_in_second_schedule_is_enforced() {
+        val now = instant(2026, 10, 19, 11, 0) // Monday
+        val usageLimit = Schedule(
+            type = ScheduleType.RECURRING,
+            mode = ScheduleMode.USAGE_LIMIT,
+            usageLimitMinutes = 30,
+            daysOfWeek = setOf(2),
+            startTime = LocalTime.of(8, 0),
+            endTime = LocalTime.of(18, 0)
+        )
+        val block = recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))
+        val p = profile("Both", setOf("com.app.a"), schedules = listOf(usageLimit, block))
+
+        assertTrue(blockedPackages(listOf(p), now).contains("com.app.a"))
+        assertEquals(2, ScheduleEngine.allActiveProfileInfos(listOf(p), now).size)
     }
 
     @Test

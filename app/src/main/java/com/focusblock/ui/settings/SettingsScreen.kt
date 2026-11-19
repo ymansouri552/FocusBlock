@@ -231,6 +231,7 @@ fun SettingsScreen(
                         Spacer(modifier = Modifier.width(16.dp))
                         Switch(
                             checked = ui.blockBrowsersInStrict,
+                            enabled = !ui.isStrictActive,
                             onCheckedChange = { viewModel.setBlockBrowsersInStrict(it) },
                             colors = SwitchDefaults.colors(
                                 checkedThumbColor = palette.onAccent,

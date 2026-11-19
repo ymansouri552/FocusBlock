@@ -351,6 +351,7 @@ fun HomeScreen(
 
     if (showStrictTermsDialog) {
         StrictTermsDialog(
+            now = now,
             onDismiss = { showStrictTermsDialog = false },
             onArm = { termType, customEnd ->
                 viewModel.armStrictMode(termType, customEnd)

@@ -30,7 +30,9 @@ import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.MutableState
 import androidx.compose.runtime.mutableLongStateOf
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
@@ -59,13 +61,12 @@ class BlockScreenActivity : ComponentActivity() {
     @Inject
     lateinit var settingsDataStore: SettingsDataStore
 
+    private lateinit var detailsState: MutableState<BlockDetails>
+    private var revision = 0L
+
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
-        val appName = intent.getStringExtra(EXTRA_APP_NAME) ?: getString(R.string.block_unknown_app)
-        val profileName = intent.getStringExtra(EXTRA_PROFILE_NAME) ?: getString(R.string.block_unknown_profile)
-        val timeRemaining = intent.getLongExtra(EXTRA_TIME_REMAINING_MS, 0L)
-        val isStrict = intent.getBooleanExtra(EXTRA_IS_STRICT, false)
-        val blockReason = intent.getStringExtra(EXTRA_BLOCK_REASON)
+        detailsState = mutableStateOf(readDetails(intent))
 
         onBackPressedDispatcher.addCallback(
             this,
@@ -78,18 +79,49 @@ class BlockScreenActivity : ComponentActivity() {
 
         setContent {
             val themeMode by settingsDataStore.themeMode.collectAsStateWithLifecycle(initialValue = "DARK")
+            val details by detailsState
             FocusBlockTheme(themeMode = themeMode) {
                 BlockScreen(
-                    appName = appName,
-                    profileName = profileName,
-                    timeRemainingMs = timeRemaining,
-                    isStrict = isStrict,
-                    blockReason = blockReason,
+                    appName = details.appName,
+                    profileName = details.profileName,
+                    timeRemainingMs = details.timeRemainingMs,
+                    isStrict = details.isStrict,
+                    blockReason = details.blockReason,
+                    revision = details.revision,
                     onGoHome = { goToHomeScreen() }
                 )
             }
         }
     }
+
+    override fun onNewIntent(intent: Intent) {
+        super.onNewIntent(intent)
+        setIntent(intent)
+        if (::detailsState.isInitialized) {
+            detailsState.value = readDetails(intent)
+        }
+    }
+
+    private fun readDetails(intent: Intent): BlockDetails {
+        revision++
+        return BlockDetails(
+            appName = intent.getStringExtra(EXTRA_APP_NAME) ?: getString(R.string.block_unknown_app),
+            profileName = intent.getStringExtra(EXTRA_PROFILE_NAME) ?: getString(R.string.block_unknown_profile),
+            timeRemainingMs = intent.getLongExtra(EXTRA_TIME_REMAINING_MS, 0L),
+            isStrict = intent.getBooleanExtra(EXTRA_IS_STRICT, false),
+            blockReason = intent.getStringExtra(EXTRA_BLOCK_REASON),
+            revision = revision
+        )
+    }
+
+    private data class BlockDetails(
+        val appName: String,
+        val profileName: String,
+        val timeRemainingMs: Long,
+        val isStrict: Boolean,
+        val blockReason: String?,
+        val revision: Long
+    )
 
     private fun goToHomeScreen() {
         val homeIntent = Intent(Intent.ACTION_MAIN).apply {
@@ -120,12 +152,13 @@ fun BlockScreen(
     timeRemainingMs: Long,
     isStrict: Boolean,
     blockReason: String? = null,
+    revision: Long = 0L,
     onGoHome: () -> Unit
 ) {
     val palette = LocalPledgePalette.current
-    var remainingMs by remember(timeRemainingMs) { mutableLongStateOf(timeRemainingMs) }
+    var remainingMs by remember(timeRemainingMs, revision) { mutableLongStateOf(timeRemainingMs) }
 
-    LaunchedEffect(timeRemainingMs) {
+    LaunchedEffect(timeRemainingMs, revision) {
         val startWall = System.currentTimeMillis()
         val initialRemaining = timeRemainingMs
         while (remainingMs > 0) {

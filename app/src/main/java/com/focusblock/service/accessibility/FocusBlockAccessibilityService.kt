@@ -147,7 +147,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
             }
         }
 
-        // Real-time foreground monitor for usage-limit enforcement while app is actively running
+        // Real-time foreground monitor while the app is actively running.
         serviceScope.launch {
             var flushCounter = 0
             while (isActive) {
@@ -155,19 +155,39 @@ class FocusBlockAccessibilityService : AccessibilityService() {
                 val currentPkg = appUsageTracker.currentPackage
                 if (currentPkg != null && !isCriticalSystemApp(currentPkg)) {
                     val now = trustedNow
-                    val activeProfiles = ScheduleEngine.activeProfiles(cachedProfiles, now)
-                    val status = appUsageTracker.evaluateUsageLimit(currentPkg, activeProfiles, now)
-                    if (status != null && status.isExceeded) {
-                        appUsageTracker.onPackageBackground()
-                        val timeRemainingMs = (status.resetInstant.toEpochMilli() - now.toEpochMilli()).coerceAtLeast(0L)
-                        logBlockEvent(currentPkg, getAppLabel(currentPkg), status.profile.id)
-                        triggerBlockScreen(
-                            appName = getAppLabel(currentPkg),
-                            profileName = status.profile.name,
-                            timeRemainingMs = timeRemainingMs,
-                            isStrict = status.profile.strict,
-                            blockReason = "Usage limit reached (${status.schedule.usageLimitMinutes} min limit used)"
-                        )
+                    val activeProfiles = ScheduleEngine.allActiveProfileInfos(cachedProfiles, now)
+
+                    // A static block can become active while the app is already foreground.
+                    // Window-state events alone miss that case, so re-check on every tick.
+                    val staticBlock = activeProfiles.firstOrNull {
+                        it.schedule.mode == ScheduleMode.BLOCK && it.profile.blockedApps.contains(currentPkg)
+                    }
+                    if (staticBlock != null) {
+                        val remainingMs = staticBlock.endInstant.toEpochMilli() - now.toEpochMilli()
+                        if (remainingMs > 0) {
+                            serviceScope.launch { appUsageTracker.onPackageBackground() }
+                            logBlockEvent(currentPkg, getAppLabel(currentPkg), staticBlock.profile.id)
+                            triggerBlockScreen(
+                                appName = getAppLabel(currentPkg),
+                                profileName = staticBlock.profile.name,
+                                timeRemainingMs = remainingMs,
+                                isStrict = staticBlock.profile.strict
+                            )
+                        }
+                    } else {
+                        val status = appUsageTracker.evaluateUsageLimit(currentPkg, activeProfiles, now)
+                        if (status != null && status.isExceeded) {
+                            appUsageTracker.onPackageBackground()
+                            val timeRemainingMs = (status.resetInstant.toEpochMilli() - now.toEpochMilli()).coerceAtLeast(0L)
+                            logBlockEvent(currentPkg, getAppLabel(currentPkg), status.profile.id)
+                            triggerBlockScreen(
+                                appName = getAppLabel(currentPkg),
+                                profileName = status.profile.name,
+                                timeRemainingMs = timeRemainingMs,
+                                isStrict = status.profile.strict,
+                                blockReason = "Usage limit reached (${status.schedule.usageLimitMinutes} min limit used)"
+                            )
+                        }
                     }
                 }
                 flushCounter++
@@ -193,7 +213,7 @@ class FocusBlockAccessibilityService : AccessibilityService() {
         }
 
         val now = trustedNow
-        val activeProfiles = ScheduleEngine.activeProfiles(cachedProfiles, now)
+        val activeProfiles = ScheduleEngine.allActiveProfileInfos(cachedProfiles, now)
 
         // 1. Strict Mode Tamper Evaluation (Settings / Installer / Browser protection)
         val strictRemainingMs = getStrictRemainingMs(now, activeProfiles)

@@ -14,15 +14,19 @@ class QuickBlockUseCase @Inject constructor(private val repository: ProfileRepos
      * Creates a "quick block" profile blocking [packageNames] for [durationMinutes].
      * Cleans up any expired quick block profiles first so they do not accumulate indefinitely.
      */
-    suspend fun startQuickBlock(profileName: String, packageNames: Set<String>, durationMinutes: Int): Long {
-        val now = Instant.now()
-
-        // Prune expired quick blocks
+    suspend fun startQuickBlock(
+        profileName: String,
+        packageNames: Set<String>,
+        durationMinutes: Int,
+        now: Instant
+    ): Long {
+        // Prune expired quick blocks, but keep paused ones so they can resume.
         runCatching {
             val all = repository.getAllProfiles().first()
             all.filter { p ->
                 p.schedules.isNotEmpty() &&
                 p.schedules.all { it.type == ScheduleType.QUICK } &&
+                p.pausedUntilEpochMs == null &&
                 !ScheduleEngine.isActive(p, now)
             }.forEach { expired ->
                 repository.deleteProfile(expired)

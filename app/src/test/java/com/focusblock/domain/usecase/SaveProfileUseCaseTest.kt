@@ -2,6 +2,7 @@ package com.focusblock.domain.usecase
 
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.Schedule
+import com.focusblock.domain.model.ScheduleMode
 import com.focusblock.domain.model.ScheduleType
 import com.focusblock.domain.repository.ProfileRepository
 import kotlinx.coroutines.flow.Flow
@@ -155,6 +156,44 @@ class SaveProfileUseCaseTest {
 
         val result = useCase.canSave(current, updated, activeNow())
         assertTrue("Adding apps during active strict session must be allowed", result.allowed)
+    }
+
+    @Test
+    fun canSave_settingPauseDuringStrict_isBlocked() {
+        val current = Profile(
+            id = 1,
+            name = "Strict",
+            blockedApps = setOf("com.app.a"),
+            strict = true,
+            enabled = true,
+            schedules = listOf(
+                Schedule(type = ScheduleType.RECURRING, daysOfWeek = setOf(2), startTime = LocalTime.of(10, 0), endTime = LocalTime.of(12, 0))
+            )
+        )
+        val updated = current.copy(pausedUntilEpochMs = activeNow().toEpochMilli() + 3_600_000L)
+
+        assertFalse("A pause must not be set through the editor while strict is active", useCase.canSave(current, updated, activeNow()).allowed)
+    }
+
+    @Test
+    fun canSave_switchingBlockToUsageLimit_isBlocked() {
+        val current = Profile(
+            id = 1,
+            name = "Strict",
+            blockedApps = setOf("com.app.a"),
+            strict = true,
+            enabled = true,
+            schedules = listOf(
+                Schedule(type = ScheduleType.RECURRING, daysOfWeek = setOf(2), startTime = LocalTime.of(10, 0), endTime = LocalTime.of(12, 0))
+            )
+        )
+        val updated = current.copy(
+            schedules = listOf(
+                current.schedules.first().copy(mode = ScheduleMode.USAGE_LIMIT, usageLimitMinutes = 9999)
+            )
+        )
+
+        assertFalse("Changing block mode during strict must be blocked", useCase.canSave(current, updated, activeNow()).allowed)
     }
 
     @Test

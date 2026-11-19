@@ -14,6 +14,8 @@ import com.focusblock.domain.model.UsageStatsOverview
 import kotlinx.coroutines.flow.Flow
 import kotlinx.coroutines.flow.flowOf
 import kotlinx.coroutines.runBlocking
+import org.junit.runner.RunWith
+import org.robolectric.RobolectricTestRunner
 import java.time.Instant
 import java.time.LocalTime
 import java.time.temporal.ChronoUnit
@@ -93,6 +95,7 @@ class FakeAppUsageRepository : AppUsageRepository {
     }
 }
 
+@RunWith(RobolectricTestRunner::class)
 class AppUsageTrackerTest {
 
     private val fakeRepo = FakeAppUsageRepository()
@@ -342,6 +345,46 @@ class AppUsageTrackerTest {
         assertNotNull(tiktokStatus)
         assertTrue(tiktokStatus.isExceeded)
         assertEquals(35 * 60 * 1000L, tiktokStatus.usedMs)
+    }
+
+    @Test
+    fun flushing_a_continuous_session_does_not_drop_reported_usage() = runBlocking {
+        val pkg = "com.google.android.youtube"
+        val now = Instant.now()
+        val windowStart = now.minus(1, ChronoUnit.HOURS)
+        val windowEnd = now.plus(1, ChronoUnit.HOURS)
+        val localRepo = FakeAppUsageRepository()
+        val localTracker = AppUsageTracker(localRepo)
+
+        localRepo.recordUsage(
+            profileId = 1,
+            packageName = pkg,
+            startTimeMs = windowStart.toEpochMilli(),
+            endTimeMs = windowStart.plus(10, ChronoUnit.MINUTES).toEpochMilli()
+        )
+
+        val schedule = Schedule(
+            type = ScheduleType.DAILY,
+            mode = ScheduleMode.USAGE_LIMIT,
+            usageLimitMinutes = 30,
+            limitScope = LimitScope.PER_APP
+        )
+        val profile = Profile(
+            id = 1,
+            name = "Media",
+            blockedApps = setOf(pkg),
+            enabled = true,
+            schedules = listOf(schedule)
+        )
+
+        localTracker.onPackageForeground(pkg, 1)
+        val before = localTracker.getUsage(pkg, profile, schedule, windowStart, windowEnd)
+        Thread.sleep(150)
+        localTracker.flushSessionProgress()
+        val after = localTracker.getUsage(pkg, profile, schedule, windowStart, windowEnd)
+
+        assertTrue(after >= before, "reported usage dropped across a flush: before=$before after=$after")
+        assertTrue(after >= 10 * 60 * 1000L)
     }
 }
 

@@ -80,6 +80,8 @@ class SettingsViewModel @Inject constructor(
     }
 
     fun setBlockBrowsersInStrict(enabled: Boolean) {
+        // Policy cannot be relaxed while a strict term is committed.
+        if (_ui.value.isStrictActive) return
         viewModelScope.launch {
             dataStore.writeBoolean(SettingsKeys.blockBrowsersInStrict, enabled)
             _ui.value = _ui.value.copy(blockBrowsersInStrict = enabled)

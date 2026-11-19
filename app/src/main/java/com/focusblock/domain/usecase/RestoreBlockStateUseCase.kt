@@ -41,6 +41,7 @@ class RestoreBlockStateUseCase @Inject constructor(
             allProfiles.filter { p ->
                 p.schedules.isNotEmpty() &&
                 p.schedules.all { it.type == ScheduleType.QUICK } &&
+                p.pausedUntilEpochMs == null &&
                 !ScheduleEngine.isActive(p, trustedNow)
             }.forEach { profileRepository.deleteProfile(it) }
 

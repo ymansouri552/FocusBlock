@@ -180,7 +180,7 @@ class HomeViewModel @Inject constructor(
     fun armStrictMode(termType: StrictTermType, customEndInstant: Instant? = null) {
         viewModelScope.launch {
             try {
-                settingsDataStore.armStrictMode(termType, customEndInstant)
+                settingsDataStore.armStrictMode(termType, customEndInstant, trustedClock.now())
                 _ui.value = _ui.value.copy(error = null)
             } catch (e: Exception) {
                 _ui.value = _ui.value.copy(error = e.localizedMessage ?: "Failed to arm strict mode")
@@ -226,7 +226,8 @@ class HomeViewModel @Inject constructor(
                 quickBlockUseCase.startQuickBlock(
                     profileName = "Quick Block (${durationMinutes}m)",
                     packageNames = apps,
-                    durationMinutes = durationMinutes
+                    durationMinutes = durationMinutes,
+                    now = trustedClock.now()
                 )
                 _ui.value = _ui.value.copy(error = null)
             } catch (e: Exception) {
