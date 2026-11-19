@@ -14,6 +14,8 @@ data class Profile(
     val blockedApps: Set<String> = emptySet(),
     val strict: Boolean = false,
     val enabled: Boolean = false,
+    /** Wall-clock instant (trusted clock epoch ms) until which blocking is temporarily lifted. Null when not paused. */
+    val pausedUntilEpochMs: Long? = null,
     val createdAt: Long = Date().time,
     @TypeConverters(ProfileConverters::class)
     val schedules: List<Schedule> = emptyList()

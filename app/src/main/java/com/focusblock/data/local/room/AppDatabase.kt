@@ -12,7 +12,7 @@ import com.focusblock.domain.model.BlockLog
 import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.ProfileConverters
 
-@Database(entities = [Profile::class, BlockLog::class, AppUsageRecord::class], version = 3, exportSchema = true)
+@Database(entities = [Profile::class, BlockLog::class, AppUsageRecord::class], version = 4, exportSchema = true)
 @TypeConverters(ProfileConverters::class)
 abstract class AppDatabase : RoomDatabase() {
     abstract fun profileDao(): ProfileDao
@@ -106,6 +106,18 @@ abstract class AppDatabase : RoomDatabase() {
             }
         }
 
+        /**
+         * Upgrade from v3 to v4 adding per-profile pause support. The column is nullable so an
+         * absent value means "not paused" and existing profiles are unaffected.
+         */
+        val MIGRATION_3_4 = object : Migration(3, 4) {
+            override fun migrate(db: SupportSQLiteDatabase) {
+                if (db.tableExists("profiles") && "pausedUntilEpochMs" !in db.columnNames("profiles")) {
+                    db.execSQL("ALTER TABLE `profiles` ADD COLUMN `pausedUntilEpochMs` INTEGER DEFAULT NULL")
+                }
+            }
+        }
+
         private fun SupportSQLiteDatabase.tableExists(table: String): Boolean {
             query("SELECT name FROM sqlite_master WHERE type='table' AND name=?", arrayOf(table)).use { cursor ->
                 return cursor.moveToFirst()
@@ -128,7 +140,7 @@ abstract class AppDatabase : RoomDatabase() {
         fun getInstance(context: Context): AppDatabase {
             return INSTANCE ?: synchronized(this) {
                 Room.databaseBuilder(context.applicationContext, AppDatabase::class.java, "focus_block.db")
-                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3)
+                    .addMigrations(MIGRATION_1_2, MIGRATION_2_3, MIGRATION_3_4)
                     .build()
                     .also { INSTANCE = it }
             }

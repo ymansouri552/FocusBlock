@@ -10,7 +10,9 @@ import com.focusblock.domain.repository.BlockLogRepository
 import com.focusblock.domain.usecase.BlockedAppsUseCase
 import com.focusblock.domain.usecase.EmergencyUnlockUseCase
 import com.focusblock.domain.usecase.GetProfilesUseCase
+import com.focusblock.domain.usecase.PauseProfileUseCase
 import com.focusblock.domain.usecase.QuickBlockUseCase
+import com.focusblock.domain.usecase.ResumeProfileUseCase
 import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.SystemPermissionChecker
 import com.focusblock.domain.usecase.SystemPermissionsState
@@ -52,6 +54,8 @@ class HomeViewModel @Inject constructor(
     private val getProfilesUseCase: GetProfilesUseCase,
     private val blockedAppsUseCase: BlockedAppsUseCase,
     private val toggleProfileUseCase: ToggleProfileUseCase,
+    private val pauseProfileUseCase: PauseProfileUseCase,
+    private val resumeProfileUseCase: ResumeProfileUseCase,
     private val quickBlockUseCase: QuickBlockUseCase,
     private val settingsDataStore: SettingsDataStore,
     private val emergencyUnlockUseCase: EmergencyUnlockUseCase,
@@ -138,6 +142,39 @@ class HomeViewModel @Inject constructor(
                 }
             }
         }
+    }
+
+    fun pauseProfile(id: Int, durationMinutes: Int) {
+        viewModelScope.launch {
+            when (val result = pauseProfileUseCase.invoke(id, durationMinutes)) {
+                is PauseProfileUseCase.PauseResult.Failure -> {
+                    _ui.value = _ui.value.copy(error = result.reason)
+                }
+                is PauseProfileUseCase.PauseResult.Success -> {
+                    _ui.value = _ui.value.copy(error = null)
+                }
+            }
+        }
+    }
+
+    fun resumeProfile(id: Int) {
+        viewModelScope.launch {
+            when (val result = resumeProfileUseCase.invoke(id)) {
+                is ResumeProfileUseCase.ResumeResult.Failure -> {
+                    _ui.value = _ui.value.copy(error = result.reason)
+                }
+                ResumeProfileUseCase.ResumeResult.Success -> {
+                    _ui.value = _ui.value.copy(error = null)
+                }
+            }
+        }
+    }
+
+    /** Remaining pause time for a profile, or null when it is not currently paused. */
+    fun pauseRemainingMs(profile: Profile, now: Instant): Long? {
+        val until = profile.pausedUntilEpochMs ?: return null
+        val remaining = until - now.toEpochMilli()
+        return if (remaining > 0) remaining else null
     }
 
     fun armStrictMode(termType: StrictTermType, customEndInstant: Instant? = null) {

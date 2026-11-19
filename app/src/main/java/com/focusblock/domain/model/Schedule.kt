@@ -120,8 +120,14 @@ object ScheduleEngine {
         return activeProfile(profile, now) != null
     }
 
+    /** True while a temporary pause is still in effect. Expired pauses are ignored so blocking resumes on the next evaluation. */
+    fun isPaused(profile: Profile, now: Instant = Instant.now()): Boolean {
+        val until = profile.pausedUntilEpochMs ?: return false
+        return now.toEpochMilli() < until
+    }
+
     fun activeProfile(profile: Profile, now: Instant = Instant.now()): ActiveProfileInfo? {
-        if (!profile.enabled) return null
+        if (!profile.enabled || isPaused(profile, now)) return null
         val localNow = now.atZone(zone).toLocalDateTime()
         for (schedule in profile.schedules) {
             val window = activeWindow(schedule, now, localNow)
@@ -143,7 +149,7 @@ object ScheduleEngine {
         val result = mutableListOf<ActiveProfileInfo>()
         val localNow = now.atZone(zone).toLocalDateTime()
         for (profile in profiles) {
-            if (!profile.enabled) continue
+            if (!profile.enabled || isPaused(profile, now)) continue
             for (schedule in profile.schedules) {
                 val window = activeWindow(schedule, now, localNow)
                 if (window != null) {

@@ -266,4 +266,39 @@ class ScheduleEngineTest {
         assertEquals(LimitScope.PER_APP, deserialized.limitScope)
         assertEquals(setOf(2, 3), deserialized.daysOfWeek)
     }
+
+    // ── Temporary pause ──────────────────────────────────────────────────────────
+
+    @Test
+    fun paused_profile_lifts_blocking_while_pause_is_in_effect() {
+        val now = instant(2026, 10, 19, 11, 0)
+        val active = profile("Work", setOf("com.app.a"), schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
+        val paused = active.copy(pausedUntilEpochMs = now.plus(5, ChronoUnit.MINUTES).toEpochMilli())
+
+        assertTrue(ScheduleEngine.isPaused(paused, now))
+        assertFalse(isActive(paused, now))
+        assertTrue(activeProfiles(listOf(paused), now).isEmpty())
+        assertTrue(blockedPackages(listOf(paused), now).isEmpty())
+    }
+
+    @Test
+    fun profile_resumes_automatically_once_pause_expires() {
+        val now = instant(2026, 10, 19, 11, 0)
+        val active = profile("Work", setOf("com.app.a"), schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
+        val expiredPause = active.copy(pausedUntilEpochMs = now.minus(1, ChronoUnit.SECONDS).toEpochMilli())
+
+        assertFalse(ScheduleEngine.isPaused(expiredPause, now))
+        assertTrue(isActive(expiredPause, now))
+        assertEquals("com.app.a", blockedPackages(listOf(expiredPause), now).single())
+    }
+
+    @Test
+    fun pause_at_exact_deadline_is_no_longer_active() {
+        val now = instant(2026, 10, 19, 11, 0)
+        val active = profile("Work", setOf("com.app.a"), schedules = listOf(recurring(setOf(2), LocalTime.of(10, 0), LocalTime.of(12, 0))))
+        val endingNow = active.copy(pausedUntilEpochMs = now.toEpochMilli())
+
+        assertFalse(ScheduleEngine.isPaused(endingNow, now))
+        assertTrue(isActive(endingNow, now))
+    }
 }

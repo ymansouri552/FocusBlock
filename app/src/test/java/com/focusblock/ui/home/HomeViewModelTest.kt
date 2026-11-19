@@ -10,7 +10,9 @@ import com.focusblock.domain.repository.ProfileRepository
 import com.focusblock.domain.usecase.BlockedAppsUseCase
 import com.focusblock.domain.usecase.EmergencyUnlockUseCase
 import com.focusblock.domain.usecase.GetProfilesUseCase
+import com.focusblock.domain.usecase.PauseProfileUseCase
 import com.focusblock.domain.usecase.QuickBlockUseCase
+import com.focusblock.domain.usecase.ResumeProfileUseCase
 import com.focusblock.domain.usecase.SaveProfileUseCase
 import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.SystemPermissionChecker
@@ -73,6 +75,8 @@ class HomeViewModelTest {
         val getProfilesUseCase = GetProfilesUseCase(fakeRepo)
         val blockedAppsUseCase = BlockedAppsUseCase(fakeRepo, trustedClock)
         val toggleProfileUseCase = ToggleProfileUseCase(fakeRepo, trustedClock)
+        val pauseProfileUseCase = PauseProfileUseCase(fakeRepo, trustedClock)
+        val resumeProfileUseCase = ResumeProfileUseCase(fakeRepo)
         val quickBlockUseCase = QuickBlockUseCase(fakeRepo)
         val permissionChecker = SystemPermissionChecker(context)
 
@@ -80,6 +84,8 @@ class HomeViewModelTest {
             getProfilesUseCase = getProfilesUseCase,
             blockedAppsUseCase = blockedAppsUseCase,
             toggleProfileUseCase = toggleProfileUseCase,
+            pauseProfileUseCase = pauseProfileUseCase,
+            resumeProfileUseCase = resumeProfileUseCase,
             quickBlockUseCase = quickBlockUseCase,
             settingsDataStore = settingsDataStore,
             emergencyUnlockUseCase = emergencyUnlockUseCase,

@@ -64,6 +64,21 @@ object StrictModeRules {
         return EditResult(false, reason)
     }
 
+    fun canPause(
+        profile: Profile,
+        now: Instant = Instant.now(),
+        state: StrictModeState = independentState
+    ): EditResult {
+        if (!isStrictActive(profile, now, state)) return EditResult(true, null)
+        val reason = if (state.isEffectivelyActive(now)) {
+            val remaining = formatTermRemaining(state, now)
+            "Strict Mode is armed ($remaining). Profiles cannot be paused."
+        } else {
+            "Strict profile cannot be paused until ${endTime(profile, now)}"
+        }
+        return EditResult(false, reason)
+    }
+
     fun canDelete(
         profile: Profile,
         now: Instant = Instant.now(),

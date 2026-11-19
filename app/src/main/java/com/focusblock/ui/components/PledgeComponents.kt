@@ -608,7 +608,11 @@ fun LedgerRow(
     onEdit: () -> Unit,
     onToggle: (Boolean) -> Unit,
     modifier: Modifier = Modifier,
-    showDivider: Boolean = true
+    showDivider: Boolean = true,
+    isPaused: Boolean = false,
+    pausedLabel: String? = null,
+    onPause: () -> Unit = {},
+    onResume: () -> Unit = {}
 ) {
     val palette = LocalPledgePalette.current
 
@@ -635,11 +639,14 @@ fun LedgerRow(
                         fontWeight = FontWeight.Bold,
                         color = palette.ink,
                         maxLines = 1,
-                        overflow = TextOverflow.Ellipsis
+                        overflow = TextOverflow.Ellipsis,
+                        modifier = Modifier.weight(1f, fill = false)
                     )
 
                     if (isStrictLocked) {
                         StampLabel(text = "LOCKED")
+                    } else if (isPaused) {
+                        StampLabel(text = if (pausedLabel != null) "PAUSED · $pausedLabel" else "PAUSED")
                     } else if (isActiveNow) {
                         Surface(
                             color = palette.accent,
@@ -680,20 +687,50 @@ fun LedgerRow(
                 )
             }
 
-            Spacer(modifier = Modifier.width(16.dp))
+            Spacer(modifier = Modifier.width(12.dp))
 
             if (!isStrictLocked) {
-                Switch(
-                    checked = enabled,
-                    onCheckedChange = onToggle,
-                    colors = SwitchDefaults.colors(
-                        checkedThumbColor = palette.onAccent,
-                        checkedTrackColor = palette.accent,
-                        uncheckedThumbColor = palette.inkSecondary,
-                        uncheckedTrackColor = palette.surfaceRaised,
-                        uncheckedBorderColor = palette.hairline
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    Switch(
+                        checked = enabled,
+                        onCheckedChange = onToggle,
+                        colors = SwitchDefaults.colors(
+                            checkedThumbColor = palette.onAccent,
+                            checkedTrackColor = palette.accent,
+                            uncheckedThumbColor = palette.inkSecondary,
+                            uncheckedTrackColor = palette.surfaceRaised,
+                            uncheckedBorderColor = palette.hairline
+                        )
                     )
-                )
+                    if (enabled) {
+                        Spacer(modifier = Modifier.width(4.dp))
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(2.dp))
+                                .border(
+                                    width = 1.dp,
+                                    color = if (isPaused) palette.accent else palette.hairline,
+                                    shape = RoundedCornerShape(2.dp)
+                                )
+                                .height(48.dp)
+                                .clickable { if (isPaused) onResume() else onPause() },
+                            color = if (isPaused) palette.accent else palette.surfaceRaised
+                        ) {
+                            Box(
+                                modifier = Modifier.padding(horizontal = 10.dp),
+                                contentAlignment = Alignment.Center
+                            ) {
+                                Text(
+                                    text = if (isPaused) "RESUME" else "PAUSE",
+                                    style = MaterialTheme.typography.labelSmall,
+                                    fontWeight = FontWeight.Bold,
+                                    letterSpacing = 1.0.sp,
+                                    color = if (isPaused) palette.onAccent else palette.ink
+                                )
+                            }
+                        }
+                    }
+                }
             }
         }
 

@@ -82,6 +82,7 @@ import com.focusblock.domain.model.Profile
 import com.focusblock.domain.model.ScheduleEngine
 import com.focusblock.domain.model.StrictModeState
 import com.focusblock.domain.model.StrictTermType
+import com.focusblock.domain.usecase.PauseProfileUseCase
 import com.focusblock.domain.usecase.StrictModeRules
 import com.focusblock.domain.usecase.SystemPermissionsState
 import com.focusblock.ui.components.HoldButton
@@ -125,7 +126,9 @@ fun HomeScreen(
     var now by remember { mutableStateOf(Instant.now()) }
 
     val isAnySessionActive = remember(profiles, strictModeState, now) {
-        strictModeState.isEffectivelyActive(now) || ScheduleEngine.activeProfiles(profiles, now).isNotEmpty()
+        strictModeState.isEffectivelyActive(now) ||
+            ScheduleEngine.activeProfiles(profiles, now).isNotEmpty() ||
+            profiles.any { ScheduleEngine.isPaused(it, now) }
     }
 
     LaunchedEffect(isAnySessionActive) {
@@ -162,6 +165,7 @@ fun HomeScreen(
     var showQuickBlockDialog by remember { mutableStateOf(false) }
     var preselectedQuickDuration by remember { mutableIntStateOf(30) }
     var showStrictTermsDialog by remember { mutableStateOf(false) }
+    var pauseTarget by remember { mutableStateOf<Profile?>(null) }
 
     val snackbarHostState = remember { SnackbarHostState() }
     val error = ui.error
@@ -306,6 +310,12 @@ fun HomeScreen(
                 itemsIndexed(profiles, key = { _, profile -> profile.id }) { index, profile ->
                     val isActiveNow = ScheduleEngine.isActive(profile, now)
                     val isStrictActive = StrictModeRules.isStrictActive(profile, now)
+                    val pauseRemainingMs = viewModel.pauseRemainingMs(profile, now)
+                    val isPaused = pauseRemainingMs != null
+                    val pausedLabel = pauseRemainingMs?.let { remaining ->
+                        val minutes = (remaining + 59_999) / 60_000
+                        "${minutes}M"
+                    }
 
                     LedgerRow(
                         title = profile.name,
@@ -314,9 +324,13 @@ fun HomeScreen(
                         isStrictLocked = isStrictActive,
                         isActiveNow = isActiveNow,
                         enabled = profile.enabled,
+                        isPaused = isPaused,
+                        pausedLabel = pausedLabel,
                         showDivider = index < profiles.lastIndex,
                         onEdit = { onEditProfile(profile.id) },
-                        onToggle = { enabled -> viewModel.toggleProfile(profile.id, enabled) }
+                        onToggle = { enabled -> viewModel.toggleProfile(profile.id, enabled) },
+                        onPause = { pauseTarget = profile },
+                        onResume = { viewModel.resumeProfile(profile.id) }
                     )
                 }
             }
@@ -341,6 +355,18 @@ fun HomeScreen(
             onArm = { termType, customEnd ->
                 viewModel.armStrictMode(termType, customEnd)
                 showStrictTermsDialog = false
+            }
+        )
+    }
+
+    val pendingPause = pauseTarget
+    if (pendingPause != null) {
+        PauseProfileDialog(
+            profileName = pendingPause.name,
+            onDismiss = { pauseTarget = null },
+            onConfirm = { durationMinutes ->
+                viewModel.pauseProfile(pendingPause.id, durationMinutes)
+                pauseTarget = null
             }
         )
     }
@@ -772,6 +798,98 @@ private fun EmptyProfilesLedger(onCreateProfile: () -> Unit) {
             }
         }
     }
+}
+
+// ─────────────────────────────────────────────────────────────────────────────
+// PAUSE PROFILE MODAL
+// ─────────────────────────────────────────────────────────────────────────────
+
+@OptIn(ExperimentalLayoutApi::class)
+@Composable
+private fun PauseProfileDialog(
+    profileName: String,
+    onDismiss: () -> Unit,
+    onConfirm: (Int) -> Unit
+) {
+    val palette = LocalPledgePalette.current
+    var duration by remember {
+        mutableIntStateOf(PauseProfileUseCase.DURATION_PRESETS_MINUTES.first())
+    }
+
+    AlertDialog(
+        onDismissRequest = onDismiss,
+        title = {
+            Text(
+                text = "PAUSE PROFILE",
+                style = MaterialTheme.typography.titleMedium,
+                fontWeight = FontWeight.Bold,
+                letterSpacing = 1.0.sp,
+                color = palette.ink
+            )
+        },
+        text = {
+            Column {
+                Text(
+                    text = "Blocking for \"${profileName.ifBlank { "UNTITLED PROFILE" }}\" is lifted for the chosen time, then resumes automatically.",
+                    style = MaterialTheme.typography.bodySmall,
+                    color = palette.inkSecondary
+                )
+                Spacer(modifier = Modifier.height(16.dp))
+                Text(
+                    text = "PAUSE DURATION",
+                    style = MaterialTheme.typography.labelSmall,
+                    color = palette.inkSecondary
+                )
+                Spacer(modifier = Modifier.height(8.dp))
+                FlowRow(
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
+                    verticalArrangement = Arrangement.spacedBy(6.dp)
+                ) {
+                    PauseProfileUseCase.DURATION_PRESETS_MINUTES.forEach { mins ->
+                        val isSelected = duration == mins
+                        Surface(
+                            modifier = Modifier
+                                .clip(RoundedCornerShape(2.dp))
+                                .border(
+                                    1.dp,
+                                    if (isSelected) palette.accent else palette.hairline,
+                                    RoundedCornerShape(2.dp)
+                                )
+                                .clickable { duration = mins },
+                            color = if (isSelected) palette.accent else palette.surface
+                        ) {
+                            Text(
+                                text = "${mins}M",
+                                style = MaterialTheme.typography.labelSmall,
+                                fontWeight = FontWeight.Bold,
+                                color = if (isSelected) palette.onAccent else palette.ink,
+                                modifier = Modifier.padding(horizontal = 12.dp, vertical = 10.dp)
+                            )
+                        }
+                    }
+                }
+            }
+        },
+        confirmButton = {
+            Button(
+                onClick = { onConfirm(duration) },
+                shape = RoundedCornerShape(2.dp),
+                colors = ButtonDefaults.buttonColors(
+                    containerColor = palette.accent,
+                    contentColor = palette.onAccent
+                )
+            ) {
+                Text(text = "PAUSE FOR ${duration}M", fontWeight = FontWeight.Bold)
+            }
+        },
+        dismissButton = {
+            TextButton(onClick = onDismiss) {
+                Text("CANCEL", color = palette.inkSecondary, fontWeight = FontWeight.SemiBold)
+            }
+        },
+        containerColor = palette.surface,
+        shape = RoundedCornerShape(4.dp)
+    )
 }
 
 // ─────────────────────────────────────────────────────────────────────────────
